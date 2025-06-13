@@ -18,11 +18,15 @@ export default defineConfig({
     target: "esnext"
   },
   optimizeDeps: {
-    exclude: ['shogi_core']
+    exclude: ['shogi_core'],
+    esbuildOptions: {
+      target: 'esnext'
+    }
   },
   resolve: {
     alias: {
-      'shogi_core': resolve(__dirname, '../shogi-core/pkg/shogi_core.js')
+      'shogi_core': resolve(__dirname, '../shogi-core/pkg/shogi_core.js'),
+      'shogi_core_bg.wasm': resolve(__dirname, '../shogi-core/pkg/shogi_core_bg.wasm')
     }
   },
   server: {
@@ -31,7 +35,8 @@ export default defineConfig({
       'Cross-Origin-Opener-Policy': 'same-origin',
     },
     fs: {
-      strict: false
+      strict: false,
+      allow: ['..']
     },
     middlewareMode: false,
     hmr: {

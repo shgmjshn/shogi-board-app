@@ -32,16 +32,23 @@ const Square: React.FC<SquareProps> = ({ position, piece, player, isSelected, is
       [Piece.PromotedRook]: { black: '龍', white: '龍' },
     };
 
-    return pieceMap[piece][player === Player.Black ? 'black' : 'white'];
+    // 後手の場合は'black'の文字を使用
+    if (player === Player.White) {
+      return pieceMap[piece].black;
+    }
+    // 先手の場合は'black'の文字を使用
+    return pieceMap[piece].black;
   };
 
   const className = `square ${isSelected ? 'selected' : ''} ${isValidMove ? 'valid-move' : ''} ${
-    player === Player.White ? 'white' : ''
+    player === Player.Black ? 'white' : ''
   }`;
 
+  const pieceText = getPieceText(piece, player);
+
   return (
-    <div className={className} onClick={() => onClick(position)}>
-      {getPieceText(piece, player)}
+    <div className={className} onClick={() => onClick(position)} data-piece={pieceText}>
+      <span>{pieceText}</span>
     </div>
   );
 };
@@ -59,7 +66,7 @@ const renderBoard = (
       const cols = [];
       for (let col = 0; col < 9; col++) {
         const position = new Position(row, col);
-        const [piece, player] = board.get_piece(position);
+        const pieceInfo = board.get_piece(position);
         const isSelected = selectedPosition !== null &&
           selectedPosition.row === row && selectedPosition.column === col;
         const isValidMove = validMoves.some(move =>
@@ -70,8 +77,8 @@ const renderBoard = (
           <Square
             key={`${row}-${col}`}
             position={position}
-            piece={piece}
-            player={player}
+            piece={pieceInfo.piece}
+            player={pieceInfo.player}
             isSelected={isSelected}
             isValidMove={isValidMove}
             onClick={handleSquareClick}
@@ -103,31 +110,26 @@ export const ShogiBoard: React.FC = () => {
   // WebAssemblyモジュールの初期化を一度だけ行う
   useEffect(() => {
     let isMounted = true;
-    let wasmModule: any = null;
 
     const initWasm = async () => {
       try {
         // WebAssemblyモジュールの読み込み
         const module = await import('shogi_core');
-        wasmModule = module;
         
         // モジュールが正しく読み込まれたことを確認
-        if (!module.default || typeof module.default !== 'function') {
-          throw new Error('WebAssemblyモジュールの読み込みに失敗しました');
-        }
-
-        // WebAssemblyモジュールの初期化
-        const wasmUrl = new URL('../shogi-core/pkg/shogi_core_bg.wasm', import.meta.url);
-        console.log('WebAssemblyモジュールの初期化を開始:', wasmUrl.toString());
-        
-        await module.default({
-          url: wasmUrl
-        });
-        console.log('WebAssemblyモジュールの初期化が完了しました');
-
-        // モジュールのクラスが利用可能か確認
         if (!module.Board || !module.Position) {
           throw new Error('必要なクラスが見つかりません');
+        }
+
+        // モジュールの初期化を確認
+        try {
+          const testBoard = new module.Board();
+          const testPos = new module.Position(0, 0);
+          const pieceInfo = testBoard.get_piece(testPos);
+          console.log('WebAssemblyモジュールの初期化が完了しました:', pieceInfo);
+        } catch (initErr) {
+          console.error('WebAssemblyモジュールの初期化確認中にエラー:', initErr);
+          throw new Error('WebAssemblyモジュールの初期化に失敗しました: ' + (initErr instanceof Error ? initErr.message : String(initErr)));
         }
 
         if (isMounted) {
@@ -171,12 +173,22 @@ export const ShogiBoard: React.FC = () => {
         // 盤面が正しく初期化されたことを確認
         try {
           console.log('盤面の初期化を確認します');
+          // Positionオブジェクトの作成前にモジュールの状態を確認
+          if (typeof module.Position !== 'function') {
+            throw new Error('Positionクラスが正しく初期化されていません');
+          }
+          
           const testPos = new module.Position(0, 0);
-          if (!testPos) {
+          if (!testPos || typeof testPos.row !== 'number' || typeof testPos.column !== 'number') {
             throw new Error('Positionオブジェクトの作成に失敗しました');
           }
-          const [piece] = newBoard.get_piece(testPos);
-          console.log('初期盤面の確認:', { piece });
+
+          // 盤面の状態を確認
+          const pieceInfo = newBoard.get_piece(testPos);
+          if (typeof pieceInfo.piece === 'undefined' || typeof pieceInfo.player === 'undefined') {
+            throw new Error('盤面の状態が不正です');
+          }
+          console.log('初期盤面の確認:', pieceInfo);
         } catch (err) {
           console.error('盤面の初期化確認中にエラー:', err);
           throw new Error('盤面の初期化が不完全です: ' + (err instanceof Error ? err.message : String(err)));
@@ -214,8 +226,8 @@ export const ShogiBoard: React.FC = () => {
         for (let row = 0; row < 9; row++) {
           for (let col = 0; col < 9; col++) {
             const pos = new module.Position(row, col);
-            const [piece] = board.get_piece(pos);
-            if (piece !== Piece.Empty) {
+            const pieceInfo = board.get_piece(pos);
+            if (pieceInfo.piece !== Piece.Empty) {
               // 一時的な位置を生成（盤面外）
               const tempFrom = new module.Position(row + 9, col);
               const tempTo = new module.Position(row, col);
@@ -263,8 +275,8 @@ export const ShogiBoard: React.FC = () => {
       }
 
       // 新しいマスを選択した場合
-      const [piece] = board.get_piece(position);
-      if (piece !== Piece.Empty && board.get_current_player() === Player.Black) {
+      const pieceInfo = board.get_piece(position);
+      if (pieceInfo.piece !== Piece.Empty && board.get_current_player() === Player.Black) {
         setSelectedPosition(position);
         const moves = board.get_valid_moves(position);
         setValidMoves(moves);

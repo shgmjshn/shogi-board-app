@@ -41,8 +41,22 @@
   background-color: #7CCD7C;
 }
 
+/* 後手の駒の文字を回転 */
 .square.white {
+  position: relative;
+}
+
+.square.white::after {
+  content: attr(data-piece);
+  position: absolute;
   transform: rotate(180deg);
+  font-size: 24px;
+  font-weight: bold;
+}
+
+/* 後手の駒の元の文字を非表示 */
+.square.white > * {
+  display: none;
 }
 
 .current-player {
@@ -50,4 +64,9 @@
   text-align: center;
   font-size: 18px;
   font-weight: bold;
+}
+
+/* 駒の文字を回転 */
+.black-piece {
+  transform: rotate(0deg);
 } 
