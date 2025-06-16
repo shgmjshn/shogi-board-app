@@ -1,11 +1,16 @@
 {
   "name": "shogi-board-app",
   "private": true,
+  "workspaces": [
+    "frontend",
+    "shogi-core"
+  ],
   "scripts": {
-    "dev": "npm --prefix frontend run dev",
+    "dev": "npm run dev --workspace=frontend",
     "build:rust": "cd shogi-core && wasm-pack build --release",
-    "build:frontend": "npm --prefix frontend run build",
-    "build": "npm run build:rust && npm run build:frontend"
+    "build:frontend": "npm run build --workspace=frontend",
+    "build": "npm run build:rust && npm run build:frontend",
+    "preview": "npm run preview --workspace=frontend"
   },
   "devDependencies": {}
 } 

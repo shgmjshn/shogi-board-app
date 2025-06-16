@@ -34,7 +34,13 @@ pub struct Position {
     pub column: i32, // 1-9
 }
 
+#[wasm_bindgen]
 impl Position {
+    #[wasm_bindgen(constructor)]
+    pub fn new(row: i32, column: i32) -> Position {
+        Position { row, column }
+    }
+
     fn is_valid(&self) -> bool {
         self.row >= 0 && self.row < 9 && self.column >= 0 && self.column < 9
     }

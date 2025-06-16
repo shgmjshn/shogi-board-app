@@ -34,9 +34,14 @@ declare module 'shogi_core' {
     column: number;
   }
 
+  export interface PieceInfo {
+    piece: Piece;
+    player: Player;
+  }
+
   export class Board {
     constructor();
-    get_piece(position: Position): [Piece, Player];
+    get_piece(position: Position): PieceInfo;
     is_valid_move(from: Position, to: Position): boolean;
     make_move(from: Position, to: Position): boolean;
     get_current_player(): Player;

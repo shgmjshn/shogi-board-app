@@ -170,71 +170,61 @@ const Square: React.FC<SquareProps> = ({ position, piece, player, isSelected, is
         [wasm.Piece.PromotedRook]: '龍',
       };
 
-      return pieceMap[piece] || '';
-    } catch (err) {
-      console.error('駒の文字取得中にエラーが発生しました:', err);
-      return '';
-    }
+    return pieceMap[piece][player === Player.Black ? 'black' : 'white'];
   };
 
   const className = `square ${isSelected ? 'selected' : ''} ${isValidMove ? 'valid-move' : ''} ${
-    player === wasm.Player.White ? 'white' : ''
+    player === Player.White ? 'white' : ''
   }`;
 
+  const pieceText = getPieceText(piece, player);
+
   return (
-    <div className={className} onClick={handleClick}>
-      <div>{getPieceText(piece, player)}</div>
+    <div className={className} onClick={() => onClick(position)}>
+      {getPieceText(piece, player)}
     </div>
   );
 };
 
-// Positionオブジェクトを作成する関数
-const createPosition = (row: number, col: number): wasm.Position | null => {
-  console.group('Positionオブジェクトの作成を開始');
-  console.log('作成パラメータ:', { row, col });
-
-  if (!isWasmModuleAvailable()) {
-    console.error('❌ WASMモジュールが初期化されていません');
-    console.groupEnd();
-    return null;
-  }
-
+const renderBoard = (
+  board: Board,
+  selectedPosition: Position | null,
+  validMoves: Position[],
+  handleSquareClick: (position: Position) => void,
+  setError: (error: Error | null) => void
+) => {
   try {
-    // 入力値の検証
-    if (typeof row !== 'number' || typeof col !== 'number' ||
-        isNaN(row) || isNaN(col) ||
-        row < 0 || row >= 9 || col < 0 || col >= 9) {
-      console.warn('❌ 無効な位置のパラメータです:', { row, col });
-      console.groupEnd();
-      return null;
-    }
+    const rows = [];
+    for (let row = 0; row < 9; row++) {
+      const cols = [];
+      for (let col = 0; col < 9; col++) {
+        const position = new Position(row, col);
+        const [piece, player] = board.get_piece(position);
+        const isSelected = selectedPosition !== null &&
+          selectedPosition.row === row && selectedPosition.column === col;
+        const isValidMove = validMoves.some(move =>
+          move.row === row && move.column === col
+        );
 
-    // 新しいPositionオブジェクトを作成
-    const WasmPosition = window.wasmModule.Position as typeof wasm.Position;
-    if (!WasmPosition) {
-      console.error('❌ WASMモジュールのPositionクラスが見つかりません');
-      console.groupEnd();
-      return null;
+        cols.push(
+          <Square
+            key={`${row}-${col}`}
+            position={position}
+            piece={piece}
+            player={player}
+            isSelected={isSelected}
+            isValidMove={isValidMove}
+            onClick={handleSquareClick}
+          />
+        );
+      }
+      rows.push(
+        <div key={row} className="board-row">
+          {cols}
+        </div>
+      );
     }
-
-    const pos = new WasmPosition(row, col);
-    console.log('Positionオブジェクトを作成しました:', {
-      position: pos,
-      positionType: typeof pos,
-      isInstance: pos instanceof WasmPosition
-    });
-    
-    // 作成したオブジェクトの検証
-    const validation = validatePosition(pos);
-    if (!validation.isValid) {
-      console.error('❌ 作成したPositionオブジェクトが無効です');
-      console.groupEnd();
-      return null;
-    }
-
-    console.log('✅ Positionオブジェクトの作成に成功:', { row: validation.row, col: validation.col });
-    console.groupEnd();
-    return pos;
+    return rows;
   } catch (err) {
     console.error('❌ Positionオブジェクトの作成中にエラーが発生しました:', err);
     console.groupEnd();
@@ -250,115 +240,53 @@ export const ShogiBoard: React.FC = () => {
   const [error, setError] = useState<Error | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // 駒の移動を処理する関数
-  const handleMove = useCallback(async (from: wasm.Position, to: wasm.Position) => {
-    if (!board) return;
-
-    try {
-      const newBoard = new wasm.Board();
-      if (!newBoard) {
-        throw new Error('新しい盤面の作成に失敗しました');
-      }
-
-      // 現在の盤面の状態をコピー
-      for (let row = 0; row < 9; row++) {
-        for (let col = 0; col < 9; col++) {
-          const fromPos = createPosition(row + 9, col);
-          const toPos = createPosition(row, col);
-          if (!fromPos || !toPos) continue;
-
-          const pieceInfo = board.get_piece(toPos);
-          if (pieceInfo.piece !== wasm.Piece.Empty) {
-            if (!newBoard.make_move(fromPos, toPos)) {
-              console.warn('駒の配置に失敗しました:', { row, col });
-            }
-          }
-        }
-      }
-
-      // 新しい移動を実行
-      if (!newBoard.make_move(from, to)) {
-        throw new Error('移動の実行に失敗しました');
-      }
-
-      setBoard(newBoard);
-      setSelectedPosition(null);
-      setValidMoves([]);
-    } catch (err) {
-      console.error('盤面の更新中にエラーが発生しました:', err);
-      setError(new Error('盤面の更新に失敗しました: ' + (err instanceof Error ? err.message : String(err))));
-    }
-  }, [board, createPosition]);
-
-  const handleSquareClick = useCallback((position: wasm.Position) => {
-    if (!board) {
-      console.warn('盤面が初期化されていません');
-      return;
-    }
-
-    const validation = validatePosition(position);
-    if (!validation.isValid) {
-      console.warn('無効な位置がクリックされました');
-      return;
-    }
-
-    try {
-      // 同じマスをクリックした場合は選択を解除
-      if (selectedPosition) {
-        const selectedValidation = validatePosition(selectedPosition);
-        if (selectedValidation.isValid && 
-            selectedValidation.row === validation.row && 
-            selectedValidation.col === validation.col) {
-          setSelectedPosition(null);
-          setValidMoves([]);
-          return;
-        }
-      }
-
-      // 有効な移動先をクリックした場合は移動を実行
-      if (selectedPosition) {
-        const selectedValidation = validatePosition(selectedPosition);
-        if (selectedValidation.isValid) {
-          const isValidMove = validMoves.some(move => {
-            const moveValidation = validatePosition(move);
-            return moveValidation.isValid && 
-                   moveValidation.row === validation.row && 
-                   moveValidation.col === validation.col;
-          });
-
-          if (isValidMove) {
-            handleMove(selectedPosition, position);
-            return;
-          }
-        }
-      }
-
-      // 新しい駒を選択
-      const pieceInfo = board.get_piece(position);
-      if (pieceInfo && pieceInfo.piece !== wasm.Piece.Empty && 
-          board.get_current_player() === wasm.Player.Black) {
-        setSelectedPosition(position);
-        const moves = board.get_valid_moves(position);
-        setValidMoves(moves.filter(move => validatePosition(move).isValid));
-      }
-    } catch (err) {
-      console.error('駒の移動中にエラーが発生しました:', err);
-      setError(err instanceof Error ? err : new Error('駒の移動中にエラーが発生しました'));
-    }
-  }, [board, selectedPosition, validMoves, handleMove]);
-
-  // WebAssemblyモジュールの初期化状態を確認
+  // WebAssemblyモジュールの初期化を一度だけ行う
   useEffect(() => {
-    const checkWasmModule = () => {
-      if (isWasmModuleAvailable()) {
-        console.log("WASMモジュールが利用可能です");
-        setIsInitialized(true);
-      } else {
-        console.log("WASMモジュールの初期化を待機中...");
-        setTimeout(checkWasmModule, 100);
+    let isMounted = true;
+    let wasmModule: any = null;
+
+    const initWasm = async () => {
+      try {
+        // WebAssemblyモジュールの読み込み
+        const module = await import('shogi_core');
+        wasmModule = module;
+        
+        // モジュールが正しく読み込まれたことを確認
+        if (!module.default || typeof module.default !== 'function') {
+          throw new Error('WebAssemblyモジュールの読み込みに失敗しました');
+        }
+
+        // WebAssemblyモジュールの初期化
+        const wasmUrl = new URL('../shogi-core/pkg/shogi_core_bg.wasm', import.meta.url);
+        console.log('WebAssemblyモジュールの初期化を開始:', wasmUrl.toString());
+        
+        await module.default({
+          url: wasmUrl
+        });
+        console.log('WebAssemblyモジュールの初期化が完了しました');
+
+        // モジュールのクラスが利用可能か確認
+        if (!module.Board || !module.Position) {
+          throw new Error('必要なクラスが見つかりません');
+        }
+
+        if (isMounted) {
+          setIsInitialized(true);
+          setError(null);
+        }
+      } catch (err) {
+        console.error('WebAssemblyモジュールの初期化に失敗:', err);
+        if (isMounted) {
+          setError(err instanceof Error ? err : new Error('WebAssemblyモジュールの初期化に失敗しました'));
+        }
       }
     };
-    checkWasmModule();
+
+    initWasm();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // 盤面の初期化はWebAssemblyモジュールの初期化後に実行
@@ -377,12 +305,12 @@ export const ShogiBoard: React.FC = () => {
         // 盤面が正しく初期化されたことを確認
         try {
           console.log('盤面の初期化を確認します');
-          const testPos = createPosition(0, 0);
+          const testPos = new module.Position(0, 0);
           if (!testPos) {
             throw new Error('Positionオブジェクトの作成に失敗しました');
           }
-          const pieceInfo = newBoard.get_piece(testPos);
-          console.log('初期盤面の確認:', { piece: pieceInfo.piece });
+          const [piece] = newBoard.get_piece(testPos);
+          console.log('初期盤面の確認:', { piece });
         } catch (err) {
           console.error('盤面の初期化確認中にエラー:', err);
           throw new Error('盤面の初期化が不完全です: ' + (err instanceof Error ? err.message : String(err)));
@@ -402,72 +330,79 @@ export const ShogiBoard: React.FC = () => {
     initBoard();
   }, [isInitialized]);
 
-  if (isLoading) return <div>読み込み中...</div>;
-  if (error) return <div>エラー: {error.message}</div>;
-  if (!board) return <div>盤面の初期化に失敗しました</div>;
+  const handleSquareClick = useCallback((position: Position) => {
+    if (!board) return;
 
-  const renderBoard = (
-    board: wasm.Board,
-    selectedPosition: wasm.Position | null,
-    validMoves: wasm.Position[],
-    handleSquareClick: (position: wasm.Position) => void,
-    setError: (error: Error | null) => void
-  ) => {
-    try {
-      const rows = [];
-      for (let row = 8; row >= 0; row--) {
-        const cols = [];
-        for (let col = 0; col < 9; col++) {
-          // 各マスで新しいPositionオブジェクトを作成
-          const position = createPosition(row, col);
-          if (!position) {
-            console.warn('無効な位置が作成されました:', { row, col });
-            continue;
-          }
+    const handleMove = async () => {
+      try {
+        // 新しい盤面を作成
+        const module = await import('shogi_core');
+        const newBoard = new module.Board();
+        if (!newBoard) {
+          throw new Error('新しい盤面の作成に失敗しました');
+        }
 
-          try {
-            const pieceInfo = board.get_piece(position);
-            if (!pieceInfo) {
-              console.warn('駒の情報を取得できませんでした:', { row, col });
-              continue;
+        // 現在の盤面の状態をコピー
+        // 一時的な位置を使用して駒を移動
+        const tempPositions: [Position, Position][] = [];
+        for (let row = 0; row < 9; row++) {
+          for (let col = 0; col < 9; col++) {
+            const pos = new module.Position(row, col);
+            const [piece] = board.get_piece(pos);
+            if (piece !== Piece.Empty) {
+              // 一時的な位置を生成（盤面外）
+              const tempFrom = new module.Position(row + 9, col);
+              const tempTo = new module.Position(row, col);
+              tempPositions.push([tempFrom, tempTo]);
             }
-
-            // 選択状態と有効な移動先の確認用に新しいPositionオブジェクトを作成
-            const isSelected = selectedPosition !== null &&
-              createPosition(selectedPosition.row, selectedPosition.column) !== null &&
-              selectedPosition.row === row && 
-              selectedPosition.column === col;
-
-            const isValidMove = validMoves.some(move => {
-              const movePos = createPosition(move.row, move.column);
-              return movePos !== null && movePos.row === row && movePos.column === col;
-            });
-
-            cols.push(
-              <Square
-                key={`${row}-${col}`}
-                position={position}
-                piece={pieceInfo.piece}
-                player={pieceInfo.player}
-                isSelected={isSelected}
-                isValidMove={isValidMove}
-                onClick={handleSquareClick}
-              />
-            );
-          } catch (err) {
-            console.error('マスの描画中にエラーが発生しました:', { row, col, err });
-            continue;
           }
         }
-        if (cols.length > 0) {
-          rows.push(
-            <div key={row} className="board-row">
-              {cols}
-            </div>
-          );
+
+        // 駒を一時的な位置から実際の位置に移動
+        for (const [from, to] of tempPositions) {
+          if (!newBoard.make_move(from, to)) {
+            console.warn('駒の配置に失敗しました:', from.row, from.column);
+          }
         }
+
+        // 新しい移動を実行
+        if (selectedPosition && !newBoard.make_move(selectedPosition, position)) {
+          throw new Error('移動の実行に失敗しました');
+        }
+
+        // 盤面の状態を更新
+        setBoard(newBoard);
+        setSelectedPosition(null);
+        setValidMoves([]);
+      } catch (err) {
+        console.error('盤面の更新中にエラーが発生しました:', err);
+        setError(new Error('盤面の更新に失敗しました: ' + (err instanceof Error ? err.message : String(err))));
       }
-      return rows;
+    };
+
+    try {
+      // 既に選択されているマスをクリックした場合
+      if (selectedPosition && position.row === selectedPosition.row && position.column === selectedPosition.column) {
+        setSelectedPosition(null);
+        setValidMoves([]);
+        return;
+      }
+
+      // 有効な移動先をクリックした場合
+      if (selectedPosition && validMoves.some(move => 
+        move.row === position.row && move.column === position.column
+      )) {
+        handleMove();
+        return;
+      }
+
+      // 新しいマスを選択した場合
+      const [piece] = board.get_piece(position);
+      if (piece !== Piece.Empty && board.get_current_player() === Player.Black) {
+        setSelectedPosition(position);
+        const moves = board.get_valid_moves(position);
+        setValidMoves(moves);
+      }
     } catch (err) {
       console.error('盤面の描画中にエラーが発生しました:', err);
       setError(err instanceof Error ? err : new Error('盤面の描画中にエラーが発生しました'));

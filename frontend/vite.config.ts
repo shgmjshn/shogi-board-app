@@ -2,7 +2,6 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { fileURLToPath } from 'url'
 import { dirname, resolve } from 'path'
-import wasm from 'vite-plugin-wasm'
 import topLevelAwait from 'vite-plugin-top-level-await'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -11,7 +10,6 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 export default defineConfig({
   plugins: [
     react(),
-    wasm(),
     topLevelAwait()
   ],
   build: {
@@ -20,7 +18,7 @@ export default defineConfig({
     sourcemap: true,
   },
   optimizeDeps: {
-    exclude: ['shogi-core'],
+    exclude: ['shogi_core'],
     esbuildOptions: {
       target: 'esnext'
     }
@@ -28,8 +26,10 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': resolve(__dirname, './src'),
-      'shogi-core': resolve(__dirname, '../shogi-core/pkg/shogi_core.js')
-    },
+      'shogi-core': resolve(__dirname, '../shogi-core/pkg/shogi_core.js'),
+      'shogi_core': resolve(__dirname, '../shogi-core/pkg/shogi_core.js'),
+      'shogi_core_bg.wasm': resolve(__dirname, '../shogi-core/pkg/shogi_core_bg.wasm')
+    }
   },
   server: {
     headers: {
@@ -37,11 +37,12 @@ export default defineConfig({
       'Cross-Origin-Opener-Policy': 'same-origin',
     },
     fs: {
-      allow: ['..'],
+      strict: false,
+      allow: ['..']
     },
     middlewareMode: false,
     hmr: {
-      protocol: 'ws'
+      overlay: true
     }
   },
   assetsInclude: ['**/*.wasm']
