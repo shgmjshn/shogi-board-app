@@ -173,8 +173,8 @@ impl Board {
             (Piece::Knight, Player::Black),
             (Piece::Lance, Player::Black),
         ];
-        self.pieces[1][1] = (Piece::Rook, Player::Black);
-        self.pieces[1][7] = (Piece::Bishop, Player::Black);
+        self.pieces[1][1] = (Piece::Bishop, Player::Black);
+        self.pieces[1][7] = (Piece::Rook, Player::Black);
         for i in 0..9 {
             self.pieces[2][i] = (Piece::Pawn, Player::Black);
         }
@@ -191,8 +191,8 @@ impl Board {
             (Piece::Knight, Player::White),
             (Piece::Lance, Player::White),
         ];
-        self.pieces[7][1] = (Piece::Bishop, Player::White);
-        self.pieces[7][7] = (Piece::Rook, Player::White);
+        self.pieces[7][1] = (Piece::Rook, Player::White);
+        self.pieces[7][7] = (Piece::Bishop, Player::White);
         for i in 0..9 {
             self.pieces[6][i] = (Piece::Pawn, Player::White);
         }
@@ -212,14 +212,6 @@ impl Board {
 
     fn is_valid_position(&self, pos: Position) -> bool {
         pos.is_valid()
-    }
-
-    fn is_opponent_piece(&self, pos: Position, player: Player) -> bool {
-        if let Some((_, piece_player)) = self.get_piece_at(pos) {
-            piece_player != player
-        } else {
-            false
-        }
     }
 
     fn is_empty_or_opponent(&self, pos: Position, player: Player) -> bool {
@@ -348,6 +340,14 @@ impl Board {
             Piece::Rook => Some(Piece::PromotedRook),
             _ => None,
         }
+    }
+}
+
+#[wasm_bindgen]
+impl Position {
+    #[wasm_bindgen(constructor)]
+    pub fn new(row: i32, column: i32) -> Position {
+        Position { row, column }
     }
 }
 

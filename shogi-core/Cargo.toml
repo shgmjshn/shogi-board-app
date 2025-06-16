@@ -1,10 +1,16 @@
 [package]
 name = "shogi-core"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
+description = "将棋のコアロジックを提供するWebAssemblyモジュール"
+license = "MIT"
+repository = "https://github.com/yourusername/shogi-board-app"
 
 [lib]
 crate-type = ["cdylib"]
 
 [dependencies]
 wasm-bindgen = "0.2"
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"

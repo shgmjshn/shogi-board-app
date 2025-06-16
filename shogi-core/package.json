@@ -1,0 +1,26 @@
+{
+  "name": "shogi-core",
+  "version": "0.1.0",
+  "description": "将棋のコアロジックを提供するWebAssemblyモジュール",
+  "type": "module",
+  "main": "pkg/shogi_core.js",
+  "types": "pkg/shogi_core.d.ts",
+  "files": [
+    "pkg"
+  ],
+  "scripts": {
+    "build": "wasm-pack build --release",
+    "test": "cargo test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/shogi-board-app"
+  },
+  "keywords": [
+    "shogi",
+    "wasm",
+    "rust"
+  ],
+  "author": "",
+  "license": "MIT"
+} 

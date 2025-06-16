@@ -7,7 +7,7 @@ import topLevelAwait from 'vite-plugin-top-level-await'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
-// https://vite.dev/config/
+// https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
     react(),
@@ -15,15 +15,21 @@ export default defineConfig({
     topLevelAwait()
   ],
   build: {
-    target: "esnext"
+    target: 'esnext',
+    outDir: 'dist',
+    sourcemap: true,
   },
   optimizeDeps: {
-    exclude: ['shogi_core']
+    exclude: ['shogi-core'],
+    esbuildOptions: {
+      target: 'esnext'
+    }
   },
   resolve: {
     alias: {
-      'shogi_core': resolve(__dirname, '../shogi-core/pkg/shogi_core.js')
-    }
+      '@': resolve(__dirname, './src'),
+      'shogi-core': resolve(__dirname, '../shogi-core/pkg/shogi_core.js')
+    },
   },
   server: {
     headers: {
@@ -31,7 +37,7 @@ export default defineConfig({
       'Cross-Origin-Opener-Policy': 'same-origin',
     },
     fs: {
-      strict: false
+      allow: ['..'],
     },
     middlewareMode: false,
     hmr: {

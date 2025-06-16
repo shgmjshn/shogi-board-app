@@ -1,0 +1,11 @@
+{
+  "name": "shogi-board-app",
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix frontend run dev",
+    "build:rust": "cd shogi-core && wasm-pack build --release",
+    "build:frontend": "npm --prefix frontend run build",
+    "build": "npm run build:rust && npm run build:frontend"
+  },
+  "devDependencies": {}
+} 

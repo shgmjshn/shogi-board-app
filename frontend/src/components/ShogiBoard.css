@@ -1,9 +1,9 @@
 .shogi-board {
-  display: inline-block;
-  background-color: #DEB887;
-  padding: 10px;
-  border: 2px solid #8B4513;
-  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  border: 2px solid #000;
+  width: fit-content;
+  margin: 20px auto;
 }
 
 .board-row {
@@ -11,43 +11,44 @@
 }
 
 .square {
-  width: 50px;
-  height: 50px;
-  border: 1px solid #8B4513;
+  width: 60px;
+  height: 60px;
+  border: 1px solid #000;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 24px;
-  font-weight: bold;
   cursor: pointer;
   position: relative;
-  background-color: #F5DEB3;
-  user-select: none;
+  background-color: #f0d9b5;
 }
 
-.square:hover {
-  background-color: #E6D5AC;
-}
-
-.square.selected {
-  background-color: #98FB98;
-}
-
-.square.valid-move {
-  background-color: #90EE90;
-}
-
-.square.valid-move:hover {
-  background-color: #7CCD7C;
-}
-
-.square.white {
+/* 後手（白）の駒を180度回転 */
+.square.white > div {
   transform: rotate(180deg);
 }
 
+.square.selected {
+  background-color: #aec6cf;
+}
+
+.square.valid-move {
+  background-color: #98fb98;
+}
+
+.square.valid-move::before {
+  content: '';
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-color: rgba(0, 255, 0, 0.3);
+  z-index: 1;
+}
+
 .current-player {
-  margin-top: 10px;
   text-align: center;
+  margin-top: 10px;
   font-size: 18px;
   font-weight: bold;
 } 
