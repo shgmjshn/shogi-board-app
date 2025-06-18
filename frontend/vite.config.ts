@@ -45,5 +45,8 @@ export default defineConfig({
       overlay: true
     }
   },
-  assetsInclude: ['**/*.wasm']
-})
+  assetsInclude: ['**/*.wasm'],
+  define: {
+    global: 'globalThis',
+  }
+}) 

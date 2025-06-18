@@ -38,7 +38,15 @@ pub struct Position {
 impl Position {
     #[wasm_bindgen(constructor)]
     pub fn new(row: i32, column: i32) -> Position {
-        Position { row, column }
+        // 入力値の検証
+        if row < 0 || row >= 9 || column < 0 || column >= 9 {
+            // エラーログを出力
+            web_sys::console::error_1(&format!("Position: 無効な座標 ({}, {})", row, column).into());
+            // デフォルト値として(0, 0)を返す
+            Position { row: 0, column: 0 }
+        } else {
+            Position { row, column }
+        }
     }
 
     fn is_valid(&self) -> bool {
@@ -50,6 +58,23 @@ impl Position {
             Player::Black => self.row <= 2,
             Player::White => self.row >= 6,
         }
+    }
+
+    // デバッグ用のメソッド
+    #[wasm_bindgen]
+    pub fn debug_info(&self) -> String {
+        format!("Position({}, {})", self.row, self.column)
+    }
+
+    // 座標を取得するメソッド（より安全）
+    #[wasm_bindgen]
+    pub fn get_row(&self) -> i32 {
+        self.row
+    }
+
+    #[wasm_bindgen]
+    pub fn get_column(&self) -> i32 {
+        self.column
     }
 }
 
@@ -123,8 +148,27 @@ impl Board {
 
         let (piece, player) = self.pieces[from.row as usize][from.column as usize];
         
-        // 成り判定
-        let final_piece = if to.is_promotion_zone(player) {
+        // 自動成りを無効化 - 駒をそのまま移動
+        self.pieces[to.row as usize][to.column as usize] = (piece, player);
+        self.pieces[from.row as usize][from.column as usize] = (Piece::Empty, Player::Black);
+        self.current_player = if self.current_player == Player::Black {
+            Player::White
+        } else {
+            Player::Black
+        };
+        true
+    }
+
+    #[wasm_bindgen]
+    pub fn make_move_with_promotion(&mut self, from: Position, to: Position, promote: bool) -> bool {
+        if !self.is_valid_move(from, to) {
+            return false;
+        }
+
+        let (piece, player) = self.pieces[from.row as usize][from.column as usize];
+        
+        // 成り判定を手動で行う
+        let final_piece = if promote && to.is_promotion_zone(player) {
             self.get_promoted_piece(piece).unwrap_or(piece)
         } else {
             piece
@@ -160,6 +204,88 @@ impl Board {
             .into_iter()
             .filter(|&to| self.is_empty_or_opponent(to, player))
             .collect()
+    }
+
+    #[wasm_bindgen]
+    pub fn get_valid_moves_by_coords(&self, from_row: i32, from_col: i32) -> Vec<Position> {
+        let from = Position::new(from_row, from_col);
+        let (piece, player) = match self.get_piece_at(from) {
+            Some(p) => p,
+            None => return Vec::new(),
+        };
+
+        if player != self.current_player {
+            return Vec::new();
+        }
+
+        self.get_piece_moves(from, piece, player)
+            .into_iter()
+            .filter(|&to| self.is_empty_or_opponent(to, player))
+            .collect()
+    }
+
+    #[wasm_bindgen]
+    pub fn get_piece_by_coords(&self, row: i32, col: i32) -> PieceInfo {
+        let position = Position::new(row, col);
+        self.get_piece(position)
+    }
+
+    #[wasm_bindgen]
+    pub fn make_move_by_coords(&mut self, from_row: i32, from_col: i32, to_row: i32, to_col: i32) -> bool {
+        let from = Position::new(from_row, from_col);
+        let to = Position::new(to_row, to_col);
+        self.make_move(from, to)
+    }
+
+    #[wasm_bindgen]
+    pub fn make_move_by_coords_with_promotion(&mut self, from_row: i32, from_col: i32, to_row: i32, to_col: i32, promote: bool) -> bool {
+        let from = Position::new(from_row, from_col);
+        let to = Position::new(to_row, to_col);
+        self.make_move_with_promotion(from, to, promote)
+    }
+
+    #[wasm_bindgen]
+    pub fn can_promote(&self, from_row: i32, from_col: i32, to_row: i32, to_col: i32) -> bool {
+        let from = Position::new(from_row, from_col);
+        let to = Position::new(to_row, to_col);
+        
+        // 移動元の駒を取得
+        let (piece, player) = match self.get_piece_at(from) {
+            Some(p) => p,
+            None => return false,
+        };
+        
+        // 成り駒は既に成っているので成れない
+        if self.is_promoted_piece(piece) {
+            return false;
+        }
+        
+        // 歩、香車、桂馬、銀、角、飛車のみ成れる
+        if !self.can_promote_piece(piece) {
+            return false;
+        }
+        
+        match player {
+            Player::Black => from.row >= 6 || to.row >= 6,
+            Player::White => from.row <= 2 || to.row <= 2,
+        }
+    }
+
+    #[wasm_bindgen]
+    pub fn clone(&self) -> Board {
+        Board {
+            pieces: self.pieces,
+            current_player: self.current_player,
+        }
+    }
+
+    #[wasm_bindgen]
+    pub fn set_piece(&mut self, position: Position, piece: Piece, player: Player) -> bool {
+        if !position.is_valid() {
+            return false;
+        }
+        self.pieces[position.row as usize][position.column as usize] = (piece, player);
+        true
     }
 }
 
@@ -347,13 +473,18 @@ impl Board {
             _ => None,
         }
     }
-}
 
-#[wasm_bindgen]
-impl Position {
-    #[wasm_bindgen(constructor)]
-    pub fn new(row: i32, column: i32) -> Position {
-        Position { row, column }
+    fn is_promoted_piece(&self, piece: Piece) -> bool {
+        matches!(piece, 
+            Piece::PromotedPawn | Piece::PromotedLance | Piece::PromotedKnight | 
+            Piece::PromotedSilver | Piece::PromotedBishop | Piece::PromotedRook
+        )
+    }
+
+    fn can_promote_piece(&self, piece: Piece) -> bool {
+        matches!(piece, 
+            Piece::Pawn | Piece::Lance | Piece::Knight | Piece::Silver | Piece::Bishop | Piece::Rook
+        )
     }
 }
 

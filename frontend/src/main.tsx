@@ -10,8 +10,20 @@ const initWasm = async () => {
     const wasmModule = await import('shogi-core');
     
     // モジュールの初期化を待機
-    if (typeof wasmModule.default === 'function') {
-      await wasmModule.default();
+    if ((wasmModule as any).init && typeof (wasmModule as any).init === 'function') {
+      const wasmUrl = '/shogi_core_bg.wasm';
+      console.log('WASMファイルのURL:', wasmUrl);
+      
+      // WASMモジュールの初期化に必要なimportsを提供
+      const imports = {
+        './shogi_core_bg.js': wasmModule
+      };
+      
+      await (wasmModule as any).init(wasmUrl, imports);
+    } else if (typeof (wasmModule as any).default === 'function') {
+      await (wasmModule as any).default();
+    } else {
+      throw new Error('WASMモジュールの初期化関数が見つかりません');
     }
 
     // モジュールが利用可能になるまで待機

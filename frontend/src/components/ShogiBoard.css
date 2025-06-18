@@ -1,6 +1,6 @@
 .shogi-board {
-  display: grid;
-  grid-template-columns: repeat(9, 1fr);
+  display: flex;
+  flex-direction: column;
   gap: 1px;
   background-color: #000;
   padding: 10px;
@@ -12,6 +12,7 @@
 
 .board-row {
   display: flex;
+  gap: 1px;
 }
 
 .square {
@@ -34,12 +35,25 @@
 
 /* 後手（白）の駒のスタイル */
 .square.white {
-  position: relative;
+  transform: rotate(180deg);
+  color: #000; /* 濃い赤色で白の駒を表示 */
 }
 
-.square.white > div {
-  transform: rotate(180deg);
+.square.white::after {
+  content: attr(data-piece);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(360deg);
+  font-size: 24px;
   font-weight: bold;
+  color: #000;
+}
+
+/* 先手（黒）の駒のスタイル */
+.square:not(.white) {
+  font-weight: bold;
+  color: #000;
 }
 
 /* 選択状態と有効な移動先のスタイル */
@@ -67,8 +81,8 @@
 }
 
 .current-player {
+  margin-top: 20px;
   text-align: center;
-  margin-top: 10px;
   font-size: 18px;
   font-weight: bold;
 }
@@ -82,4 +96,67 @@
 /* 後手の駒の元の文字を非表示 */
 .square.white > * {
   display: none;
+}
+
+/* 成り選択ダイアログ */
+.promotion-dialog {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.promotion-content {
+  background-color: white;
+  padding: 30px;
+  border-radius: 10px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  text-align: center;
+}
+
+.promotion-content h3 {
+  margin: 0 0 20px 0;
+  font-size: 20px;
+  color: #333;
+}
+
+.promotion-buttons {
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+}
+
+.promote-button,
+.not-promote-button {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 6px;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.promote-button {
+  background-color: #4CAF50;
+  color: white;
+}
+
+.promote-button:hover {
+  background-color: #45a049;
+}
+
+.not-promote-button {
+  background-color: #f44336;
+  color: white;
+}
+
+.not-promote-button:hover {
+  background-color: #da190b;
 } 
