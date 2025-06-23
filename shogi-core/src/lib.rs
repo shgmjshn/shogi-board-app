@@ -55,8 +55,8 @@ impl Position {
 
     fn is_promotion_zone(&self, player: Player) -> bool {
         match player {
-            Player::Black => self.row <= 2,
-            Player::White => self.row >= 6,
+            Player::Black => self.row >= 6, // 6,7,8段目
+            Player::White => self.row <= 2, // 0,1,2段目
         }
     }
 
@@ -90,6 +90,7 @@ pub struct PieceInfo {
 pub struct Board {
     pieces: [[(Piece, Player); 9]; 9],
     current_player: Player,
+    captured_pieces: [[i32; 8]; 2], // [player][piece_type] で持ち駒の数を管理
 }
 
 #[wasm_bindgen]
@@ -99,6 +100,7 @@ impl Board {
         let mut board = Board {
             pieces: [[(Piece::Empty, Player::Black); 9]; 9],
             current_player: Player::Black,
+            captured_pieces: [[0; 8]; 2],
         };
         board.initialize();
         board
@@ -166,6 +168,15 @@ impl Board {
         }
 
         let (piece, player) = self.pieces[from.row as usize][from.column as usize];
+        
+        // 移動先に相手の駒がある場合は持ち駒に追加
+        if let Some((captured_piece, captured_player)) = self.get_piece_at(to) {
+            if captured_player != player {
+                // 成り駒は元の駒に戻して持ち駒に追加
+                let original_piece = self.get_original_piece(captured_piece);
+                self.add_captured_piece(player, original_piece);
+            }
+        }
         
         // 成り判定を手動で行う
         let final_piece = if promote && to.is_promotion_zone(player) {
@@ -276,6 +287,7 @@ impl Board {
         Board {
             pieces: self.pieces,
             current_player: self.current_player,
+            captured_pieces: self.captured_pieces,
         }
     }
 
@@ -286,6 +298,107 @@ impl Board {
         }
         self.pieces[position.row as usize][position.column as usize] = (piece, player);
         true
+    }
+
+    #[wasm_bindgen]
+    pub fn get_captured_piece_count(&self, player: Player, piece: Piece) -> i32 {
+        let player_index = if player == Player::Black { 0 } else { 1 };
+        let piece_index = self.piece_to_index(piece);
+        if piece_index >= 0 && piece_index < 8 {
+            self.captured_pieces[player_index][piece_index as usize]
+        } else {
+            0
+        }
+    }
+
+    #[wasm_bindgen]
+    pub fn add_captured_piece(&mut self, player: Player, piece: Piece) {
+        let player_index = if player == Player::Black { 0 } else { 1 };
+        let piece_index = self.piece_to_index(piece);
+        if piece_index >= 0 && piece_index < 8 {
+            self.captured_pieces[player_index][piece_index as usize] += 1;
+        }
+    }
+
+    #[wasm_bindgen]
+    pub fn use_captured_piece(&mut self, player: Player, piece: Piece) -> bool {
+        let player_index = if player == Player::Black { 0 } else { 1 };
+        let piece_index = self.piece_to_index(piece);
+        if piece_index >= 0 && piece_index < 8 {
+            if self.captured_pieces[player_index][piece_index as usize] > 0 {
+                self.captured_pieces[player_index][piece_index as usize] -= 1;
+                true
+            } else {
+                false
+            }
+        } else {
+            false
+        }
+    }
+
+    #[wasm_bindgen]
+    pub fn can_drop_piece(&self, piece: Piece, to_row: i32, to_col: i32) -> bool {
+        // 持ち駒があるかチェック
+        if self.get_captured_piece_count(self.current_player, piece) <= 0 {
+            return false;
+        }
+
+        // 盤面内かチェック
+        if to_row < 0 || to_row >= 9 || to_col < 0 || to_col >= 9 {
+            return false;
+        }
+
+        // 空のマスかチェック
+        let to_pos = Position::new(to_row, to_col);
+        if let Some(_) = self.get_piece_at(to_pos) {
+            return false;
+        }
+
+        // 歩・香車の特殊ルール
+        match piece {
+            Piece::Pawn => {
+                // 二歩の禁止
+                if self.has_pawn_in_column_except(to_col, self.current_player, -1) {
+                    return false;
+                }
+            }
+            Piece::Lance => {
+                // 香車は最下段（先手）または最上段（後手）には打てない
+                let forbidden_row = if self.current_player == Player::Black { 8 } else { 0 };
+                if to_row == forbidden_row {
+                    return false;
+                }
+            }
+            Piece::Knight => {
+                // 桂馬は最下段・下から2段目（先手）または最上段・上から2段目（後手）には打てない
+                let forbidden_rows = if self.current_player == Player::Black { [7, 8] } else { [0, 1] };
+                if forbidden_rows.contains(&to_row) {
+                    return false;
+                }
+            }
+            _ => {}
+        }
+
+        true
+    }
+
+    #[wasm_bindgen]
+    pub fn drop_piece(&mut self, piece: Piece, to_row: i32, to_col: i32) -> bool {
+        if !self.can_drop_piece(piece, to_row, to_col) {
+            return false;
+        }
+
+        if self.use_captured_piece(self.current_player, piece) {
+            self.pieces[to_row as usize][to_col as usize] = (piece, self.current_player);
+            self.current_player = if self.current_player == Player::Black {
+                Player::White
+            } else {
+                Player::Black
+            };
+            true
+        } else {
+            false
+        }
     }
 }
 
@@ -356,110 +469,246 @@ impl Board {
 
     fn get_piece_moves(&self, from: Position, piece: Piece, player: Player) -> Vec<Position> {
         let mut moves = Vec::new();
-        let directions = match piece {
+        
+        match piece {
             Piece::Pawn => {
-                let dir = if player == Player::Black { -1 } else { 1 };
-                vec![(dir, 0)]
+                // 歩: 前方1マスのみ
+                let dir = if player == Player::Black { 1 } else { -1 };
+                let new_row = from.row + dir;
+                let new_col = from.column;
+                
+                if new_row >= 0 && new_row < 9 && new_col >= 0 && new_col < 9 {
+                    let new_pos = Position::new(new_row, new_col);
+                    if self.is_empty_or_opponent(new_pos, player) {
+                        // 二歩の禁止チェック
+                        if !self.has_pawn_in_column_except(new_col, player, from.row) {
+                            moves.push(new_pos);
+                        }
+                    }
+                }
             }
+            
             Piece::Lance => {
-                let dir = if player == Player::Black { -1 } else { 1 };
-                (1..9).map(|i| (dir * i, 0)).collect()
+                // 香車: 前方一直線
+                let dir = if player == Player::Black { 1 } else { -1 };
+                let mut current_row = from.row + dir;
+                
+                while current_row >= 0 && current_row < 9 {
+                    let new_pos = Position::new(current_row, from.column);
+                    if let Some((_, piece_player)) = self.get_piece_at(new_pos) {
+                        if piece_player != player {
+                            moves.push(new_pos);
+                        }
+                        break; // 他の駒にぶつかったら停止
+                    }
+                    moves.push(new_pos);
+                    current_row += dir;
+                }
             }
+            
             Piece::Knight => {
-                let dir = if player == Player::Black { -2 } else { 2 };
-                vec![(dir, -1), (dir, 1)]
+                // 桂馬: 特殊な動き（前方2マス+左右1マス）
+                let dir = if player == Player::Black { 2 } else { -2 };
+                let new_row = from.row + dir;
+                
+                if new_row >= 0 && new_row < 9 {
+                    // 左桂馬
+                    let left_col = from.column - 1;
+                    if left_col >= 0 {
+                        let new_pos = Position::new(new_row, left_col);
+                        if self.is_empty_or_opponent(new_pos, player) {
+                            moves.push(new_pos);
+                        }
+                    }
+                    
+                    // 右桂馬
+                    let right_col = from.column + 1;
+                    if right_col < 9 {
+                        let new_pos = Position::new(new_row, right_col);
+                        if self.is_empty_or_opponent(new_pos, player) {
+                            moves.push(new_pos);
+                        }
+                    }
+                }
             }
+            
             Piece::Silver => {
-                let dir = if player == Player::Black { -1 } else { 1 };
-                vec![
-                    (dir, -1),
-                    (dir, 0),
-                    (dir, 1),
-                    (-dir, -1),
-                    (-dir, 1),
-                ]
+                // 銀: 前方3方向+後方2方向
+                let dir = if player == Player::Black { 1 } else { -1 };
+                let directions = vec![
+                    (dir, -1),   // 前方左斜め
+                    (dir, 0),    // 前方
+                    (dir, 1),    // 前方右斜め
+                    (-dir, -1),  // 後方左斜め
+                    (-dir, 1),   // 後方右斜め
+                ];
+                
+                for (dr, dc) in directions {
+                    let new_row = from.row + dr;
+                    let new_col = from.column + dc;
+                    
+                    if new_row >= 0 && new_row < 9 && new_col >= 0 && new_col < 9 {
+                        let new_pos = Position::new(new_row, new_col);
+                        if self.is_empty_or_opponent(new_pos, player) {
+                            moves.push(new_pos);
+                        }
+                    }
+                }
             }
+            
             Piece::Gold | Piece::PromotedPawn | Piece::PromotedLance | 
             Piece::PromotedKnight | Piece::PromotedSilver => {
-                let dir = if player == Player::Black { -1 } else { 1 };
-                vec![
-                    (dir, -1),
-                    (dir, 0),
-                    (dir, 1),
-                    (0, -1),
-                    (0, 1),
-                    (-dir, 0),
-                ]
+                // 金・成り駒: 前方3方向+横2方向+後方1方向
+                let dir = if player == Player::Black { 1 } else { -1 };
+                let directions = vec![
+                    (dir, -1),   // 前方左斜め
+                    (dir, 0),    // 前方
+                    (dir, 1),    // 前方右斜め
+                    (0, -1),     // 左
+                    (0, 1),      // 右
+                    (-dir, 0),   // 後方
+                ];
+                
+                for (dr, dc) in directions {
+                    let new_row = from.row + dr;
+                    let new_col = from.column + dc;
+                    
+                    if new_row >= 0 && new_row < 9 && new_col >= 0 && new_col < 9 {
+                        let new_pos = Position::new(new_row, new_col);
+                        if self.is_empty_or_opponent(new_pos, player) {
+                            moves.push(new_pos);
+                        }
+                    }
+                }
             }
+            
             Piece::Bishop => {
-                vec![
-                    (-1, -1), (-1, 1), (1, -1), (1, 1),
-                ]
+                // 角行: 斜め4方向の一直線
+                let directions = vec![(-1, -1), (-1, 1), (1, -1), (1, 1)];
+                self.add_sliding_moves(from, directions, player, &mut moves);
             }
+            
             Piece::PromotedBishop => {
-                vec![
-                    (-1, -1), (-1, 1), (1, -1), (1, 1),
-                    (0, -1), (0, 1), (-1, 0), (1, 0),
-                ]
+                // 馬: 角行の動き+縦横1マス
+                let directions = vec![(-1, -1), (-1, 1), (1, -1), (1, 1)];
+                self.add_sliding_moves(from, directions, player, &mut moves);
+                
+                // 縦横1マス
+                let orthogonal_directions = vec![(-1, 0), (1, 0), (0, -1), (0, 1)];
+                for (dr, dc) in orthogonal_directions {
+                    let new_row = from.row + dr;
+                    let new_col = from.column + dc;
+                    
+                    if new_row >= 0 && new_row < 9 && new_col >= 0 && new_col < 9 {
+                        let new_pos = Position::new(new_row, new_col);
+                        if self.is_empty_or_opponent(new_pos, player) {
+                            moves.push(new_pos);
+                        }
+                    }
+                }
             }
+            
             Piece::Rook => {
-                vec![
-                    (-1, 0), (1, 0), (0, -1), (0, 1),
-                ]
+                // 飛車: 縦横4方向の一直線
+                let directions = vec![(-1, 0), (1, 0), (0, -1), (0, 1)];
+                self.add_sliding_moves(from, directions, player, &mut moves);
             }
+            
             Piece::PromotedRook => {
-                vec![
-                    (-1, 0), (1, 0), (0, -1), (0, 1),
-                    (-1, -1), (-1, 1), (1, -1), (1, 1),
-                ]
+                // 龍: 飛車の動き+斜め1マス
+                let directions = vec![(-1, 0), (1, 0), (0, -1), (0, 1)];
+                self.add_sliding_moves(from, directions, player, &mut moves);
+                
+                // 斜め1マス
+                let diagonal_directions = vec![(-1, -1), (-1, 1), (1, -1), (1, 1)];
+                for (dr, dc) in diagonal_directions {
+                    let new_row = from.row + dr;
+                    let new_col = from.column + dc;
+                    
+                    if new_row >= 0 && new_row < 9 && new_col >= 0 && new_col < 9 {
+                        let new_pos = Position::new(new_row, new_col);
+                        if self.is_empty_or_opponent(new_pos, player) {
+                            moves.push(new_pos);
+                        }
+                    }
+                }
             }
+            
             Piece::King => {
-                vec![
+                // 玉: 全方向1マス
+                let directions = vec![
                     (-1, -1), (-1, 0), (-1, 1),
                     (0, -1), (0, 1),
                     (1, -1), (1, 0), (1, 1),
-                ]
-            }
-            Piece::Empty => vec![],
-        };
-
-        for (dr, dc) in directions {
-            let mut current = Position {
-                row: from.row + dr,
-                column: from.column + dc,
-            };
-
-            // 香車、飛車、角行は一直線に動ける
-            let is_sliding = matches!(piece, Piece::Lance | Piece::Rook | Piece::Bishop | 
-                Piece::PromotedRook | Piece::PromotedBishop);
-            
-            while current.is_valid() {
-                if let Some((_, piece_player)) = self.get_piece_at(current) {
-                    if piece_player != player {
-                        moves.push(current);
+                ];
+                
+                for (dr, dc) in directions {
+                    let new_row = from.row + dr;
+                    let new_col = from.column + dc;
+                    
+                    if new_row >= 0 && new_row < 9 && new_col >= 0 && new_col < 9 {
+                        let new_pos = Position::new(new_row, new_col);
+                        if self.is_empty_or_opponent(new_pos, player) {
+                            moves.push(new_pos);
+                        }
                     }
-                    break;
                 }
-                moves.push(current);
-                if !is_sliding {
-                    break;
-                }
-                current = Position {
-                    row: current.row + dr,
-                    column: current.column + dc,
-                };
             }
+            
+            Piece::Empty => {}
         }
 
-        // 成り判定
-        if from.is_promotion_zone(player) || moves.iter().any(|&pos| pos.is_promotion_zone(player)) {
-            if let Some(promoted_piece) = self.get_promoted_piece(piece) {
-                // 成り駒の動きも追加
-                moves.extend(self.get_piece_moves(from, promoted_piece, player));
+        // 成り判定（成り駒でない場合のみ）
+        if !self.is_promoted_piece(piece) && self.can_promote_piece(piece) {
+            // 歩の場合は成り判定エリア内でも成り駒の動きを追加しない
+            // （成ることを明示的に選択した場合のみ成り駒になる）
+            if piece != Piece::Pawn && from.is_promotion_zone(player) {
+                if let Some(promoted_piece) = self.get_promoted_piece(piece) {
+                    // 成り駒の動きも追加
+                    let promoted_moves = self.get_piece_moves(from, promoted_piece, player);
+                    moves.extend(promoted_moves);
+                }
             }
         }
 
         moves
+    }
+
+    // 一直線に動ける駒（香車、飛車、角行）の移動可能位置を計算
+    fn add_sliding_moves(&self, from: Position, directions: Vec<(i32, i32)>, player: Player, moves: &mut Vec<Position>) {
+        for (dr, dc) in directions {
+            let mut current_row = from.row + dr;
+            let mut current_col = from.column + dc;
+            
+            while current_row >= 0 && current_row < 9 && current_col >= 0 && current_col < 9 {
+                let new_pos = Position::new(current_row, current_col);
+                if let Some((_, piece_player)) = self.get_piece_at(new_pos) {
+                    if piece_player != player {
+                        moves.push(new_pos);
+                    }
+                    break; // 他の駒にぶつかったら停止
+                }
+                moves.push(new_pos);
+                current_row += dr;
+                current_col += dc;
+            }
+        }
+    }
+
+    // 二歩の禁止チェック（移動元の歩を除外）
+    fn has_pawn_in_column_except(&self, col: i32, player: Player, except_row: i32) -> bool {
+        for row in 0..9 {
+            if row == except_row {
+                continue; // 移動元の位置は除外
+            }
+            let pos = Position::new(row, col);
+            if let Some((piece, piece_player)) = self.get_piece_at(pos) {
+                if piece == Piece::Pawn && piece_player == player {
+                    return true;
+                }
+            }
+        }
+        false
     }
 
     fn get_promoted_piece(&self, piece: Piece) -> Option<Piece> {
@@ -485,6 +734,32 @@ impl Board {
         matches!(piece, 
             Piece::Pawn | Piece::Lance | Piece::Knight | Piece::Silver | Piece::Bishop | Piece::Rook
         )
+    }
+
+    fn piece_to_index(&self, piece: Piece) -> i32 {
+        match piece {
+            Piece::Pawn => 0,
+            Piece::Lance => 1,
+            Piece::Knight => 2,
+            Piece::Silver => 3,
+            Piece::Gold => 4,
+            Piece::Bishop => 5,
+            Piece::Rook => 6,
+            Piece::King => 7,
+            _ => -1, // 成り駒や空の駒は持ち駒にならない
+        }
+    }
+
+    fn get_original_piece(&self, piece: Piece) -> Piece {
+        match piece {
+            Piece::PromotedPawn => Piece::Pawn,
+            Piece::PromotedLance => Piece::Lance,
+            Piece::PromotedKnight => Piece::Knight,
+            Piece::PromotedSilver => Piece::Silver,
+            Piece::PromotedBishop => Piece::Bishop,
+            Piece::PromotedRook => Piece::Rook,
+            _ => piece, // 成り駒でない場合はそのまま
+        }
     }
 }
 

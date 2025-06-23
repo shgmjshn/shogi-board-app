@@ -1,10 +1,10 @@
 .shogi-board {
   display: flex;
   flex-direction: column;
-  gap: 1px;
-  background-color: #000;
+  gap: 0px;
+  background-color: #8B4513;
   padding: 10px;
-  border: 2px solid #8B4513;
+  border: 3px solid #654321;
   border-radius: 5px;
   width: fit-content;
   margin: 0 auto;
@@ -12,7 +12,7 @@
 
 .board-row {
   display: flex;
-  gap: 1px;
+  gap: 0px;
 }
 
 .square {
@@ -27,6 +27,7 @@
   background-color: #f0d9b5;
   user-select: none;
   transition: background-color 0.2s ease;
+  border: 1px solid #8B4513;
 }
 
 .square:hover {
@@ -80,11 +81,27 @@
   z-index: 1;
 }
 
+/* 持ち駒ドロップモード */
+.square.dropping-mode {
+  background-color: #fff3cd;
+  border: 2px dashed #ffc107;
+}
+
+.square.dropping-mode:hover {
+  background-color: #ffeaa7;
+  border-color: #f39c12;
+}
+
 .current-player {
   margin-top: 20px;
   text-align: center;
   font-size: 18px;
   font-weight: bold;
+}
+
+.board-controls {
+  margin-top: 20px;
+  text-align: center;
 }
 
 /* 駒の文字のスタイル */
@@ -159,4 +176,46 @@
 
 .not-promote-button:hover {
   background-color: #da190b;
+}
+
+/* メインレイアウト */
+.board-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  justify-content: center;
+}
+
+.board-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* 持ち駒表示エリア */
+.captured-pieces-left {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px;
+  background-color: #f5f5f5;
+  border-radius: 8px;
+  min-width: 80px;
+  min-height: 400px;
+}
+
+.captured-pieces-right {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px;
+  background-color: #f5f5f5;
+  border-radius: 8px;
+  min-width: 80px;
+  min-height: 400px;
+}
+
+/* 既存のcaptured-piecesクラスは削除または非表示に */
+.captured-pieces {
+  display: none;
 } 

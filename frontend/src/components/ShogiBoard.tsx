@@ -1,21 +1,34 @@
-import { useEffect, useState, useCallback } from 'react';
-import * as wasm from "shogi-core";
+import React, { useState, useEffect, useCallback } from 'react';
 import { ErrorBoundary } from './ErrorBoundary';
+import { CapturedPieces } from './CapturedPieces';
 import './ShogiBoard.css';
+
+// WASMモジュールの型定義
+interface WasmModule {
+  Board: any;
+  Position: any;
+  Piece: any;
+  Player: any;
+  PieceInfo: any;
+}
 
 interface SquareProps {
   row: number;
   col: number;
-  piece: wasm.Piece;
-  player: wasm.Player;
+  piece: any;
+  player: any;
   isSelected: boolean;
   isValidMove: boolean;
   onClick: (row: number, col: number) => void;
+  isDroppingMode: boolean;
 }
 
-const Square: React.FC<SquareProps> = ({ row, col, piece, player, isSelected, isValidMove, onClick }) => {
-  const getPieceText = (piece: wasm.Piece, player: wasm.Player) => {
-    const pieceMap: Record<wasm.Piece, string> = {
+const Square: React.FC<SquareProps> = ({ row, col, piece, player, isSelected, isValidMove, onClick, isDroppingMode }) => {
+  const getPieceText = (piece: any, player: any) => {
+    const wasm = (window as any).wasmModule;
+    if (!wasm) return '';
+    
+    const pieceMap: Record<any, string> = {
       [wasm.Piece.Empty]: '',
       [wasm.Piece.Pawn]: '歩',
       [wasm.Piece.Lance]: '香',
@@ -32,12 +45,12 @@ const Square: React.FC<SquareProps> = ({ row, col, piece, player, isSelected, is
       [wasm.Piece.PromotedBishop]: '馬',
       [wasm.Piece.PromotedRook]: '龍',
     };
-    return pieceMap[piece];
+    return pieceMap[piece] || '';
   };
 
   const className = `square ${isSelected ? 'selected' : ''} ${isValidMove ? 'valid-move' : ''} ${
-    player === wasm.Player.White ? 'white' : ''
-  }`;
+    player === (window as any).wasmModule?.Player?.White ? 'white' : ''
+  } ${isDroppingMode ? 'dropping-mode' : ''}`;
 
   const handleClick = useCallback(() => {
     // 入力値の範囲チェック
@@ -64,10 +77,11 @@ const Square: React.FC<SquareProps> = ({ row, col, piece, player, isSelected, is
 };
 
 const renderBoard = (
-  board: wasm.Board,
-  selectedPosition: wasm.Position | null,
-  validMoves: wasm.Position[],
-  handleSquareClick: (row: number, col: number) => void
+  board: any,
+  selectedPosition: any | null,
+  validMoves: any[],
+  handleSquareClick: (row: number, col: number) => void,
+  isDroppingMode: boolean = false
 ) => {
   const rows = [];
   for (let row = 8; row >= 0; row--) {
@@ -75,8 +89,8 @@ const renderBoard = (
     for (let col = 0; col < 9; col++) {
       try {
         // 新しい座標ベースのメソッドを使用
-        let piece = wasm.Piece.Empty;
-        let player = wasm.Player.Black;
+        let piece = (window as any).wasmModule?.Piece?.Empty;
+        let player = (window as any).wasmModule?.Player?.Black;
         
         try {
           const pieceInfo = board.get_piece_by_coords(row, col);
@@ -85,8 +99,8 @@ const renderBoard = (
         } catch (err) {
           console.error(`get_piece_by_coordsエラー at (${row}, ${col}):`, err);
           // エラーが発生した場合は空のマスとして扱う
-          piece = wasm.Piece.Empty;
-          player = wasm.Player.Black;
+          piece = (window as any).wasmModule?.Piece?.Empty;
+          player = (window as any).wasmModule?.Player?.Black;
         }
         
         // 選択状態と有効な移動先の判定（座標を直接比較）
@@ -128,6 +142,7 @@ const renderBoard = (
             isSelected={isSelected}
             isValidMove={isValidMove}
             onClick={handleSquareClick}
+            isDroppingMode={isDroppingMode}
           />
         );
       } catch (err) {
@@ -137,11 +152,12 @@ const renderBoard = (
             key={`${row}-${col}`}
             row={row}
             col={col}
-            piece={wasm.Piece.Empty}
-            player={wasm.Player.Black}
+            piece={(window as any).wasmModule?.Piece?.Empty}
+            player={(window as any).wasmModule?.Player?.Black}
             isSelected={false}
             isValidMove={false}
             onClick={handleSquareClick}
+            isDroppingMode={isDroppingMode}
           />
         );
       }
@@ -156,12 +172,14 @@ const renderBoard = (
 };
 
 export const ShogiBoard: React.FC = () => {
-  const [board, setBoard] = useState<wasm.Board | null>(null);
-  const [selectedPosition, setSelectedPosition] = useState<wasm.Position | null>(null);
-  const [validMoves, setValidMoves] = useState<wasm.Position[]>([]);
+  const [board, setBoard] = useState<any>(null);
+  const [selectedPosition, setSelectedPosition] = useState<any>(null);
+  const [validMoves, setValidMoves] = useState<any[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
   const [showPromotionDialog, setShowPromotionDialog] = useState(false);
   const [pendingMove, setPendingMove] = useState<{fromRow: number, fromCol: number, toRow: number, toCol: number} | null>(null);
+  const [selectedCapturedPiece, setSelectedCapturedPiece] = useState<any>(null);
+  const [isDroppingMode, setIsDroppingMode] = useState(false);
 
   // WebAssemblyモジュールの初期化を一度だけ行う
   useEffect(() => {
@@ -169,30 +187,14 @@ export const ShogiBoard: React.FC = () => {
 
     const initWasm = async () => {
       try {
-        console.log('WASM初期化開始');
+        console.log('ShogiBoard: WASM初期化確認');
         
-        // 既存のWASMモジュールをクリア
-        if ((window as any).wasmModule) {
-          console.log('既存のWASMモジュールをクリア');
-          delete (window as any).wasmModule;
-        }
-
-        // WebAssemblyモジュールの読み込みと初期化
-        console.log('WASMモジュールを読み込み中...');
-        const wasmModule = await import('shogi_core');
-        console.log('WASMモジュール読み込み完了:', wasmModule);
-        
-        // 初期化関数を呼び出し
-        if (wasmModule.default && typeof wasmModule.default === 'function') {
-          console.log('WASMモジュールのdefault関数を呼び出し中...');
-          await wasmModule.default();
-        } else if ((wasmModule as any).init && typeof (wasmModule as any).init === 'function') {
-          console.log('WASMモジュールのinit関数を呼び出し中...');
-          await (wasmModule as any).init();
+        // main.tsxで初期化されたモジュールを確認
+        if (!(window as any).wasmModule) {
+          throw new Error('WASMモジュールが初期化されていません');
         }
         
-        // 少し待機してWASMモジュールが完全に初期化されるのを待つ
-        await new Promise(resolve => setTimeout(resolve, 100));
+        const wasmModule = (window as any).wasmModule;
         
         // モジュールのクラスが利用可能か確認
         console.log('WASMモジュールのクラス確認中...');
@@ -209,11 +211,6 @@ export const ShogiBoard: React.FC = () => {
           const testPosition = new wasmModule.Position(0, 0);
           console.log('Positionオブジェクト作成成功:', testPosition);
           
-          // プロパティアクセステスト
-          const row = testPosition.row;
-          const column = testPosition.column;
-          console.log('Positionプロパティアクセス成功:', { row, column });
-          
           const debugInfo = testPosition.debug_info();
           console.log('Positionクラステスト成功:', debugInfo);
         } catch (err) {
@@ -222,19 +219,13 @@ export const ShogiBoard: React.FC = () => {
         }
         
         console.log('WASMモジュールのクラス確認完了');
-        console.log('Boardクラス:', wasmModule.Board);
-        console.log('Positionクラス:', wasmModule.Position);
-
-        // window.wasmModuleを設定
-        (window as any).wasmModule = wasmModule;
-        console.log('window.wasmModule設定完了');
 
         if (isMounted) {
           setIsInitialized(true);
-          console.log('WASM初期化完了');
+          console.log('ShogiBoard: WASM初期化完了');
         }
       } catch (err) {
-        console.error('WebAssemblyモジュールの初期化に失敗:', err);
+        console.error('ShogiBoard: WebAssemblyモジュールの初期化に失敗:', err);
         if (isMounted) {
           setIsInitialized(false);
         }
@@ -329,7 +320,7 @@ export const ShogiBoard: React.FC = () => {
   const handleSquareClick = useCallback((row: number, col: number) => {
     if (!board || !window.wasmModule) return;
     
-    const createPosition = (r: number, c: number): wasm.Position | null => {
+    const createPosition = (r: number, c: number): any | null => {
       try {
         return new window.wasmModule.Position(r, c);
       } catch (err) {
@@ -339,6 +330,18 @@ export const ShogiBoard: React.FC = () => {
     };
 
     try {
+      // 持ち駒ドロップモードの場合
+      if (isDroppingMode && selectedCapturedPiece) {
+        const newBoard = board.clone();
+        if (newBoard.drop_piece(selectedCapturedPiece, row, col)) {
+          setBoard(newBoard);
+          setSelectedCapturedPiece(null);
+          setIsDroppingMode(false);
+          setValidMoves([]);
+        }
+        return;
+      }
+
       // 既に選択されているマスをクリックした場合
       if (selectedPosition) {
         try {
@@ -385,7 +388,7 @@ export const ShogiBoard: React.FC = () => {
         const currentPlayer = board.get_current_player();
         
         // 現在の手番の駒のみ選択可能
-        if (piece !== wasm.Piece.Empty && player === currentPlayer) {
+        if (piece !== (window as any).wasmModule?.Piece?.Empty && player === currentPlayer) {
           const position = createPosition(row, col);
           if (position) {
             setSelectedPosition(position);
@@ -404,14 +407,58 @@ export const ShogiBoard: React.FC = () => {
     } catch (err) {
       console.error('盤面の描画中にエラーが発生しました:', err);
     }
-  }, [board, selectedPosition, validMoves, handleMove]);
+  }, [board, selectedPosition, validMoves, handleMove, isDroppingMode, selectedCapturedPiece]);
+
+  const handleCapturedPieceClick = useCallback((piece: any) => {
+    if (selectedCapturedPiece === piece) {
+      setSelectedCapturedPiece(null);
+      setIsDroppingMode(false);
+    } else {
+      setSelectedCapturedPiece(piece);
+      setIsDroppingMode(true);
+      setSelectedPosition(null);
+      setValidMoves([]);
+    }
+  }, [selectedCapturedPiece]);
 
   return (
     <ErrorBoundary>
       <div className="shogi-board">
-        {board && renderBoard(board, selectedPosition, validMoves, handleSquareClick)}
-        <div className="current-player">
-          現在の手番: {board?.get_current_player() === wasm.Player.Black ? '先手（黒）' : '後手（白）'}
+        <div className="board-layout">
+          {/* 後手の持ち駒（左側） */}
+          {board && (
+            <div className="captured-pieces-left">
+              <CapturedPieces
+                board={board}
+                onPieceClick={handleCapturedPieceClick}
+                selectedPiece={selectedCapturedPiece}
+                player={window.wasmModule?.Player?.White}
+                playerName="後手（白）"
+              />
+            </div>
+          )}
+          
+          {/* 盤面と現在の手番 */}
+          <div className="board-center">
+            {board && renderBoard(board, selectedPosition, validMoves, handleSquareClick, isDroppingMode)}
+            
+            <div className="current-player">
+              現在の手番: {board?.get_current_player() === (window as any).wasmModule?.Player?.Black ? '先手（黒）' : '後手（白）'}
+            </div>
+          </div>
+          
+          {/* 先手の持ち駒（右側） */}
+          {board && (
+            <div className="captured-pieces-right">
+              <CapturedPieces
+                board={board}
+                onPieceClick={handleCapturedPieceClick}
+                selectedPiece={selectedCapturedPiece}
+                player={window.wasmModule?.Player?.Black}
+                playerName="先手（黒）"
+              />
+            </div>
+          )}
         </div>
         
         {/* 成り選択ダイアログ */}

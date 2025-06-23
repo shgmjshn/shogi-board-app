@@ -6,64 +6,31 @@ import './index.css'
 // WebAssemblyモジュールの初期化
 const initWasm = async () => {
   try {
-    // モジュールをインポート
-    const wasmModule = await import('shogi-core');
+    console.log('WASMモジュールの初期化開始');
     
-    // モジュールの初期化を待機
-    if ((wasmModule as any).init && typeof (wasmModule as any).init === 'function') {
-      const wasmUrl = '/shogi_core_bg.wasm';
-      console.log('WASMファイルのURL:', wasmUrl);
-      
-      // WASMモジュールの初期化に必要なimportsを提供
-      const imports = {
-        './shogi_core_bg.js': wasmModule
-      };
-      
-      await (wasmModule as any).init(wasmUrl, imports);
-    } else if (typeof (wasmModule as any).default === 'function') {
-      await (wasmModule as any).default();
-    } else {
-      throw new Error('WASMモジュールの初期化関数が見つかりません');
+    // WebAssemblyモジュールを動的インポート
+    const wasmModule = await import('shogi-core');
+    console.log('WASMモジュール読み込み完了:', wasmModule);
+
+    // 明示的に初期化関数を呼び出す
+    if (wasmModule.default) {
+      await wasmModule.default();
+      console.log('WASMモジュール初期化完了');
     }
 
-    // モジュールが利用可能になるまで待機
-    let retryCount = 0;
-    const maxRetries = 20;
-    const checkModule = () => {
-      return new Promise<void>((resolve, reject) => {
-        const check = () => {
-          // モジュールの基本機能が利用可能か確認
-          if (wasmModule.Board && typeof wasmModule.Board === 'function') {
-            try {
-              // テスト用のインスタンスを作成して機能を確認
-              const testBoard = new wasmModule.Board();
-              if (testBoard && typeof testBoard.get_piece === 'function') {
-                console.log("WASMモジュールが完全に初期化されました");
-                // グローバルにモジュールを設定
-                (window as any).wasmModule = wasmModule;
-                resolve();
-                return;
-              }
-            } catch (err) {
-              console.log("モジュールの機能確認中:", err);
-            }
-          }
+    // Boardクラスなどが正しくimportできているか確認
+    if (!wasmModule.Board || typeof wasmModule.Board !== 'function') {
+      throw new Error('Boardクラスが見つかりません');
+    }
 
-          if (retryCount >= maxRetries) {
-            reject(new Error('WASMモジュールの初期化がタイムアウトしました'));
-            return;
-          }
+    // テスト用のインスタンス作成
+    const testBoard = new wasmModule.Board();
+    console.log('Boardインスタンス作成成功:', testBoard);
 
-          retryCount++;
-          console.log(`WASMモジュールの初期化を待機中... (${retryCount}/${maxRetries})`);
-          setTimeout(check, 200); // 待機時間を延長
-        };
-        check();
-      });
-    };
-
-    await checkModule();
-    return true;
+    // グローバルにモジュールを設定（必要なら）
+    (window as any).wasmModule = wasmModule;
+    console.log('WASMモジュールの初期化完了');
+    return wasmModule;
   } catch (err) {
     console.error('WASMモジュールの初期化に失敗しました:', err);
     throw err;
@@ -75,21 +42,6 @@ const initApp = async () => {
   try {
     // WebAssemblyモジュールの初期化を待機
     await initWasm();
-    
-    // モジュールが利用可能か最終確認
-    if (!(window as any).wasmModule?.Board) {
-      throw new Error('WebAssemblyモジュールが正しく初期化されていません');
-    }
-
-    // テスト用のインスタンスを作成して最終確認
-    try {
-      const testBoard = new (window as any).wasmModule.Board();
-      if (!testBoard || typeof testBoard.get_piece !== 'function') {
-        throw new Error('WebAssemblyモジュールの機能が不完全です');
-      }
-    } catch (err) {
-      throw new Error('WebAssemblyモジュールのテストに失敗しました: ' + (err instanceof Error ? err.message : String(err)));
-    }
 
     // Reactアプリケーションのマウント
     ReactDOM.createRoot(document.getElementById('root')!).render(

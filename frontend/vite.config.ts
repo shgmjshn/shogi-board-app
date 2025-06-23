@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import { fileURLToPath } from 'url'
 import { dirname, resolve } from 'path'
 import topLevelAwait from 'vite-plugin-top-level-await'
+import wasm from 'vite-plugin-wasm'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -10,15 +11,27 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 export default defineConfig({
   plugins: [
     react(),
-    topLevelAwait()
+    topLevelAwait(),
+    wasm()
   ],
   build: {
     target: 'esnext',
     outDir: 'dist',
     sourcemap: true,
+    rollupOptions: {
+      external: [],
+      output: {
+        assetFileNames: (assetInfo) => {
+          if (assetInfo.name && assetInfo.name.endsWith('.wasm')) {
+            return 'assets/[name][extname]';
+          }
+          return 'assets/[name]-[hash][extname]';
+        }
+      }
+    }
   },
   optimizeDeps: {
-    exclude: ['shogi_core'],
+    exclude: ['shogi-core'],
     esbuildOptions: {
       target: 'esnext'
     }
@@ -27,8 +40,6 @@ export default defineConfig({
     alias: {
       '@': resolve(__dirname, './src'),
       'shogi-core': resolve(__dirname, '../shogi-core/pkg/shogi_core.js'),
-      'shogi_core': resolve(__dirname, '../shogi-core/pkg/shogi_core.js'),
-      'shogi_core_bg.wasm': resolve(__dirname, '../shogi-core/pkg/shogi_core_bg.wasm')
     }
   },
   server: {
