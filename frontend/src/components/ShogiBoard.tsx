@@ -4,13 +4,13 @@ import { CapturedPieces } from './CapturedPieces';
 import './ShogiBoard.css';
 
 // WASMモジュールの型定義
-interface WasmModule {
-  Board: any;
-  Position: any;
-  Piece: any;
-  Player: any;
-  PieceInfo: any;
-}
+// interface WasmModule {
+//   Board: any;
+//   Position: any;
+//   Piece: any;
+//   Player: any;
+//   PieceInfo: any;
+// }
 
 interface SquareProps {
   row: number;
