@@ -1,0 +1,21 @@
+{
+  "name": "shogi-core",
+  "type": "module",
+  "description": "将棋のコアロジックを提供するWebAssemblyモジュール",
+  "version": "0.1.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/shogi-board-app"
+  },
+  "files": [
+    "shogi_core_bg.wasm",
+    "shogi_core.js",
+    "shogi_core.d.ts"
+  ],
+  "main": "shogi_core.js",
+  "types": "shogi_core.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
