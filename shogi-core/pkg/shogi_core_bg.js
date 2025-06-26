@@ -266,6 +266,117 @@ export class Board {
         const ret = wasm.board_set_piece(this.__wbg_ptr, ptr0, piece, player);
         return ret !== 0;
     }
+    /**
+     * @param {Player} player
+     * @param {Piece} piece
+     * @returns {number}
+     */
+    get_captured_piece_count(player, piece) {
+        const ret = wasm.board_get_captured_piece_count(this.__wbg_ptr, player, piece);
+        return ret;
+    }
+    /**
+     * @param {Player} player
+     * @param {Piece} piece
+     */
+    add_captured_piece(player, piece) {
+        wasm.board_add_captured_piece(this.__wbg_ptr, player, piece);
+    }
+    /**
+     * @param {Player} player
+     * @param {Piece} piece
+     * @returns {boolean}
+     */
+    use_captured_piece(player, piece) {
+        const ret = wasm.board_use_captured_piece(this.__wbg_ptr, player, piece);
+        return ret !== 0;
+    }
+    /**
+     * @param {Piece} piece
+     * @param {number} to_row
+     * @param {number} to_col
+     * @returns {boolean}
+     */
+    can_drop_piece(piece, to_row, to_col) {
+        const ret = wasm.board_can_drop_piece(this.__wbg_ptr, piece, to_row, to_col);
+        return ret !== 0;
+    }
+    /**
+     * @param {Piece} piece
+     * @param {number} to_row
+     * @param {number} to_col
+     * @returns {string}
+     */
+    debug_can_drop_piece(piece, to_row, to_col) {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.board_debug_can_drop_piece(this.__wbg_ptr, piece, to_row, to_col);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @param {Piece} piece
+     * @param {number} to_row
+     * @param {number} to_col
+     * @returns {boolean}
+     */
+    drop_piece(piece, to_row, to_col) {
+        const ret = wasm.board_drop_piece(this.__wbg_ptr, piece, to_row, to_col);
+        return ret !== 0;
+    }
+    /**
+     * @returns {string}
+     */
+    debug_board_state() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.board_debug_board_state(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @param {number} col
+     * @param {Player} player
+     * @param {number} except_row
+     * @returns {string}
+     */
+    debug_has_pawn_in_column(col, player, except_row) {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.board_debug_has_pawn_in_column(this.__wbg_ptr, col, player, except_row);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @returns {string}
+     */
+    debug_captured_pieces() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.board_debug_captured_pieces(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
 }
 
 const PieceInfoFinalization = (typeof FinalizationRegistry === 'undefined')
@@ -415,6 +526,10 @@ export class Position {
 
 export function __wbg_error_524f506f44df1645(arg0) {
     console.error(arg0);
+};
+
+export function __wbg_log_c222819a41e063d3(arg0) {
+    console.log(arg0);
 };
 
 export function __wbg_position_new(arg0) {

@@ -150,6 +150,18 @@ impl Board {
 
         let (piece, player) = self.pieces[from.row as usize][from.column as usize];
         
+        // 移動先に相手の駒がある場合は持ち駒に追加
+        if let Some((captured_piece, captured_player)) = self.get_piece_at(to) {
+            if captured_player != player {
+                // 成り駒は元の駒に戻して持ち駒に追加
+                let original_piece = self.get_original_piece(captured_piece);
+                web_sys::console::log_1(&format!("駒を取得: {} -> {}", 
+                    self.piece_to_string(captured_piece), 
+                    self.piece_to_string(original_piece)).into());
+                self.add_captured_piece(player, original_piece);
+            }
+        }
+        
         // 自動成りを無効化 - 駒をそのまま移動
         self.pieces[to.row as usize][to.column as usize] = (piece, player);
         self.pieces[from.row as usize][from.column as usize] = (Piece::Empty, Player::Black);
@@ -174,12 +186,15 @@ impl Board {
             if captured_player != player {
                 // 成り駒は元の駒に戻して持ち駒に追加
                 let original_piece = self.get_original_piece(captured_piece);
+                web_sys::console::log_1(&format!("駒を取得: {} -> {}", 
+                    self.piece_to_string(captured_piece), 
+                    self.piece_to_string(original_piece)).into());
                 self.add_captured_piece(player, original_piece);
             }
         }
         
         // 成り判定を手動で行う
-        let final_piece = if promote && to.is_promotion_zone(player) {
+        let final_piece = if promote && self.can_promote(from.row, from.column, to.row, to.column) {
             self.get_promoted_piece(piece).unwrap_or(piece)
         } else {
             piece
@@ -276,9 +291,18 @@ impl Board {
             return false;
         }
         
-        match player {
-            Player::Black => from.row >= 6 || to.row >= 6,
-            Player::White => from.row <= 2 || to.row <= 2,
+        // 後ろ方向に動ける駒（銀、角、飛車）の場合は、移動元が敵陣にあるか、移動先が敵陣に入るか、移動先が敵陣から出る場合に成れる
+        if self.can_move_backward(piece) {
+            match player {
+                Player::Black => from.row >= 6 || to.row >= 6 || (from.row >= 6 && to.row < 6), // 移動元が敵陣にあるか、移動先が敵陣に入るか、敵陣から出る
+                Player::White => from.row <= 2 || to.row <= 2 || (from.row <= 2 && to.row > 2), // 移動元が敵陣にあるか、移動先が敵陣に入るか、敵陣から出る
+            }
+        } else {
+            // 後ろ方向に動けない駒（歩、香車、桂馬）は従来通り敵陣に入ったタイミングのみ
+            match player {
+                Player::Black => to.row >= 6, // 移動先が敵陣に入る場合のみ
+                Player::White => to.row <= 2, // 移動先が敵陣に入る場合のみ
+            }
         }
     }
 
@@ -383,6 +407,58 @@ impl Board {
     }
 
     #[wasm_bindgen]
+    pub fn debug_can_drop_piece(&self, piece: Piece, to_row: i32, to_col: i32) -> String {
+        let mut reasons = Vec::new();
+        
+        // 持ち駒があるかチェック
+        if self.get_captured_piece_count(self.current_player, piece) <= 0 {
+            reasons.push("持ち駒がない".to_string());
+        }
+
+        // 盤面内かチェック
+        if to_row < 0 || to_row >= 9 || to_col < 0 || to_col >= 9 {
+            reasons.push(format!("盤面外: ({}, {})", to_row, to_col));
+        }
+
+        // 空のマスかチェック
+        let to_pos = Position::new(to_row, to_col);
+        if let Some(_) = self.get_piece_at(to_pos) {
+            reasons.push("空のマスでない".to_string());
+        }
+
+        // 歩・香車の特殊ルール
+        match piece {
+            Piece::Pawn => {
+                // 二歩の禁止
+                if self.has_pawn_in_column_except(to_col, self.current_player, -1) {
+                    reasons.push("二歩の禁止".to_string());
+                }
+            }
+            Piece::Lance => {
+                // 香車は最下段（先手）または最上段（後手）には打てない
+                let forbidden_row = if self.current_player == Player::Black { 8 } else { 0 };
+                if to_row == forbidden_row {
+                    reasons.push("香車の禁止位置".to_string());
+                }
+            }
+            Piece::Knight => {
+                // 桂馬は最下段・下から2段目（先手）または最上段・上から2段目（後手）には打てない
+                let forbidden_rows = if self.current_player == Player::Black { [7, 8] } else { [0, 1] };
+                if forbidden_rows.contains(&to_row) {
+                    reasons.push("桂馬の禁止位置".to_string());
+                }
+            }
+            _ => {}
+        }
+
+        if reasons.is_empty() {
+            "OK".to_string()
+        } else {
+            format!("ドロップ不可: {}", reasons.join(", "))
+        }
+    }
+
+    #[wasm_bindgen]
     pub fn drop_piece(&mut self, piece: Piece, to_row: i32, to_col: i32) -> bool {
         if !self.can_drop_piece(piece, to_row, to_col) {
             return false;
@@ -399,6 +475,130 @@ impl Board {
         } else {
             false
         }
+    }
+
+    #[wasm_bindgen]
+    pub fn debug_board_state(&self) -> String {
+        let mut result = String::new();
+        result.push_str("盤面の状態:\n");
+        
+        for row in (0..9).rev() {
+            result.push_str(&format!("{}段目: ", row));
+            for col in 0..9 {
+                let pos = Position::new(row, col);
+                if let Some((piece, player)) = self.get_piece_at(pos) {
+                    let piece_name = match piece {
+                        Piece::Empty => "空",
+                        Piece::Pawn => "歩",
+                        Piece::Lance => "香",
+                        Piece::Knight => "桂",
+                        Piece::Silver => "銀",
+                        Piece::Gold => "金",
+                        Piece::Bishop => "角",
+                        Piece::Rook => "飛",
+                        Piece::King => if player == Player::Black { "玉" } else { "王" },
+                        Piece::PromotedPawn => "と",
+                        Piece::PromotedLance => "成香",
+                        Piece::PromotedKnight => "成桂",
+                        Piece::PromotedSilver => "成銀",
+                        Piece::PromotedBishop => "馬",
+                        Piece::PromotedRook => "龍",
+                    };
+                    let player_name = if player == Player::Black { "先手" } else { "後手" };
+                    result.push_str(&format!("{}{} ", piece_name, player_name));
+                } else {
+                    result.push_str("空 ");
+                }
+            }
+            result.push('\n');
+        }
+        
+        result.push_str(&format!("現在の手番: {}\n", 
+            if self.current_player == Player::Black { "先手" } else { "後手" }));
+        
+        result
+    }
+
+    // 二歩の判定の詳細を表示するデバッグメソッド
+    #[wasm_bindgen]
+    pub fn debug_has_pawn_in_column(&self, col: i32, player: Player, except_row: i32) -> String {
+        let mut result = format!("列{}の歩の確認（除外行: {}）:\n", col, except_row);
+        let player_name = if player == Player::Black { "先手" } else { "後手" };
+        result.push_str(&format!("{}の歩をチェック中...\n", player_name));
+        
+        let mut found_pawns = Vec::new();
+        
+        for row in 0..9 {
+            if row == except_row {
+                result.push_str(&format!("{}段目: 除外（移動元）\n", row));
+                continue;
+            }
+            
+            let pos = Position::new(row, col);
+            if let Some((piece, piece_player)) = self.get_piece_at(pos) {
+                if piece == Piece::Pawn {
+                    let piece_player_name = if piece_player == Player::Black { "先手" } else { "後手" };
+                    result.push_str(&format!("{}段目: {}の歩\n", row, piece_player_name));
+                    
+                    if piece_player == player {
+                        found_pawns.push(row);
+                    }
+                } else {
+                    result.push_str(&format!("{}段目: 他の駒\n", row));
+                }
+            } else {
+                result.push_str(&format!("{}段目: 空\n", row));
+            }
+        }
+        
+        if found_pawns.is_empty() {
+            result.push_str("二歩なし - ドロップ可能\n");
+        } else {
+            let pawn_positions: Vec<String> = found_pawns.iter().map(|&row| row.to_string()).collect();
+            result.push_str(&format!("二歩あり - 列{}の{}段目に{}の歩があるためドロップ不可\n", 
+                col, pawn_positions.join(", "), player_name));
+        }
+        
+        result
+    }
+
+    // 持ち駒の状態を詳細に表示するデバッグメソッド
+    #[wasm_bindgen]
+    pub fn debug_captured_pieces(&self) -> String {
+        let mut result = String::new();
+        result.push_str("持ち駒の状態:\n");
+        
+        for player in [Player::Black, Player::White] {
+            let player_name = if player == Player::Black { "先手" } else { "後手" };
+            result.push_str(&format!("{}の持ち駒:\n", player_name));
+            
+            let mut has_pieces = false;
+            let pieces = [Piece::Pawn, Piece::Lance, Piece::Knight, Piece::Silver, Piece::Gold, Piece::Bishop, Piece::Rook, Piece::King];
+            for piece in pieces {
+                let count = self.get_captured_piece_count(player, piece);
+                if count > 0 {
+                    let piece_name = match piece {
+                        Piece::Pawn => "歩",
+                        Piece::Lance => "香",
+                        Piece::Knight => "桂",
+                        Piece::Silver => "銀",
+                        Piece::Gold => "金",
+                        Piece::Bishop => "角",
+                        Piece::Rook => "飛",
+                        Piece::King => "玉",
+                        _ => "不明",
+                    };
+                    result.push_str(&format!("  {}: {}個\n", piece_name, count));
+                    has_pieces = true;
+                }
+            }
+            
+            if !has_pieces {
+                result.push_str("  持ち駒なし\n");
+            }
+        }
+        
+        result
     }
 }
 
@@ -658,19 +858,6 @@ impl Board {
             Piece::Empty => {}
         }
 
-        // 成り判定（成り駒でない場合のみ）
-        if !self.is_promoted_piece(piece) && self.can_promote_piece(piece) {
-            // 歩の場合は成り判定エリア内でも成り駒の動きを追加しない
-            // （成ることを明示的に選択した場合のみ成り駒になる）
-            if piece != Piece::Pawn && from.is_promotion_zone(player) {
-                if let Some(promoted_piece) = self.get_promoted_piece(piece) {
-                    // 成り駒の動きも追加
-                    let promoted_moves = self.get_piece_moves(from, promoted_piece, player);
-                    moves.extend(promoted_moves);
-                }
-            }
-        }
-
         moves
     }
 
@@ -695,14 +882,16 @@ impl Board {
         }
     }
 
-    // 二歩の禁止チェック（移動元の歩を除外）
+    // 二歩の禁止チェック（同じ列のみ判定、移動元の歩を除外）
     fn has_pawn_in_column_except(&self, col: i32, player: Player, except_row: i32) -> bool {
+        // 指定された列（col）のみをチェック（同じ段は判定しない）
         for row in 0..9 {
             if row == except_row {
                 continue; // 移動元の位置は除外
             }
             let pos = Position::new(row, col);
             if let Some((piece, piece_player)) = self.get_piece_at(pos) {
+                // 同じ列に自分の歩があるかチェック（相手の歩は判定に入れない）
                 if piece == Piece::Pawn && piece_player == player {
                     return true;
                 }
@@ -760,6 +949,32 @@ impl Board {
             Piece::PromotedRook => Piece::Rook,
             _ => piece, // 成り駒でない場合はそのまま
         }
+    }
+
+    fn piece_to_string(&self, piece: Piece) -> String {
+        match piece {
+            Piece::Empty => "空".to_string(),
+            Piece::Pawn => "歩".to_string(),
+            Piece::Lance => "香".to_string(),
+            Piece::Knight => "桂".to_string(),
+            Piece::Silver => "銀".to_string(),
+            Piece::Gold => "金".to_string(),
+            Piece::Bishop => "角".to_string(),
+            Piece::Rook => "飛".to_string(),
+            Piece::King => "玉".to_string(),
+            Piece::PromotedPawn => "と".to_string(),
+            Piece::PromotedLance => "成香".to_string(),
+            Piece::PromotedKnight => "成桂".to_string(),
+            Piece::PromotedSilver => "成銀".to_string(),
+            Piece::PromotedBishop => "馬".to_string(),
+            Piece::PromotedRook => "龍".to_string(),
+        }
+    }
+
+    fn can_move_backward(&self, piece: Piece) -> bool {
+        matches!(piece, 
+            Piece::Silver | Piece::Bishop | Piece::Rook
+        )
     }
 }
 

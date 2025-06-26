@@ -96,6 +96,17 @@ const renderBoard = (
           const pieceInfo = board.get_piece_by_coords(row, col);
           piece = pieceInfo.piece;
           player = pieceInfo.player;
+          
+          // 成り駒のデバッグログ（成り駒の場合のみ）
+          const wasm = (window as any).wasmModule;
+          if (wasm && (piece === wasm.Piece.PromotedPawn || 
+                      piece === wasm.Piece.PromotedLance || 
+                      piece === wasm.Piece.PromotedKnight || 
+                      piece === wasm.Piece.PromotedSilver || 
+                      piece === wasm.Piece.PromotedBishop || 
+                      piece === wasm.Piece.PromotedRook)) {
+            console.log(`成り駒検出: 位置(${row}, ${col}), 駒: ${piece}`);
+          }
         } catch (err) {
           console.error(`get_piece_by_coordsエラー at (${row}, ${col}):`, err);
           // エラーが発生した場合は空のマスとして扱う
@@ -180,6 +191,7 @@ export const ShogiBoard: React.FC = () => {
   const [pendingMove, setPendingMove] = useState<{fromRow: number, fromCol: number, toRow: number, toCol: number} | null>(null);
   const [selectedCapturedPiece, setSelectedCapturedPiece] = useState<any>(null);
   const [isDroppingMode, setIsDroppingMode] = useState(false);
+  const [selectedCapturedPiecePlayer, setSelectedCapturedPiecePlayer] = useState<any>(null);
 
   // WebAssemblyモジュールの初期化を一度だけ行う
   useEffect(() => {
@@ -270,7 +282,7 @@ export const ShogiBoard: React.FC = () => {
     initBoard();
   }, [isInitialized]);
 
-  const handleMove = useCallback(async (toRow: number, toCol: number, promote: boolean = false) => {
+  const handleMove = useCallback(async (toRow: number, toCol: number, promote?: boolean) => {
     if (!board || !selectedPosition) return;
     
     try {
@@ -283,24 +295,57 @@ export const ShogiBoard: React.FC = () => {
       try {
         const selectedRow = selectedPosition.get_row();
         const selectedCol = selectedPosition.get_column();
-        console.log(`移動実行: (${selectedRow}, ${selectedCol}) → (${toRow}, ${toCol})`);
+        console.log(`移動実行: (${selectedRow}, ${selectedCol}) → (${toRow}, ${toCol}), 成り: ${promote}`);
         
         // 成り判定が必要かチェック
         const canPromote = newBoard.can_promote(selectedRow, selectedCol, toRow, toCol);
+        console.log('成り可能:', canPromote);
+        console.log('promoteパラメータ:', promote);
+        console.log('promote === undefined:', promote === undefined);
+        console.log('promoteの型:', typeof promote);
         
-        if (canPromote && !promote) {
+        // promoteパラメータが明示的に指定されていない場合のみダイアログを表示
+        if (canPromote && promote === undefined) {
+          console.log('成り選択ダイアログを表示します');
           // 成り判定が必要だが選択されていない場合、ダイアログを表示
           setPendingMove({fromRow: selectedRow, fromCol: selectedCol, toRow: toRow, toCol: toCol});
           setShowPromotionDialog(true);
           return;
+        } else {
+          console.log('ダイアログ表示条件を満たしていません:', {
+            canPromote,
+            promote,
+            promoteIsUndefined: promote === undefined
+          });
         }
         
         // 成り判定付きの移動を実行
+        console.log('make_move_by_coords_with_promotion呼び出し:', selectedRow, selectedCol, toRow, toCol, promote);
         if (!newBoard.make_move_by_coords_with_promotion(selectedRow, selectedCol, toRow, toCol, promote)) {
           console.warn('移動の実行に失敗しました');
           return; // 移動に失敗した場合は現在の盤面を維持
         }
         console.log('移動が成功しました');
+        
+        // 成り処理後の盤面状態を確認
+        if (promote) {
+          console.log('=== 成り処理後の盤面状態確認 ===');
+          const movedPieceInfo = newBoard.get_piece_by_coords(toRow, toCol);
+          console.log('移動先の駒:', movedPieceInfo);
+          console.log('移動先の駒の種類:', movedPieceInfo.piece);
+          console.log('WASMの成り駒値:', {
+            PromotedPawn: (window as any).wasmModule?.Piece?.PromotedPawn,
+            PromotedLance: (window as any).wasmModule?.Piece?.PromotedLance,
+            PromotedKnight: (window as any).wasmModule?.Piece?.PromotedKnight,
+            PromotedSilver: (window as any).wasmModule?.Piece?.PromotedSilver,
+            PromotedBishop: (window as any).wasmModule?.Piece?.PromotedBishop,
+            PromotedRook: (window as any).wasmModule?.Piece?.PromotedRook,
+          });
+          
+          // 盤面全体の状態も確認
+          const boardState = newBoard.debug_board_state();
+          console.log('盤面全体の状態:', boardState);
+        }
       } catch (err) {
         console.error('移動の実行中にエラー:', err);
         return;
@@ -331,13 +376,93 @@ export const ShogiBoard: React.FC = () => {
 
     try {
       // 持ち駒ドロップモードの場合
+      console.log('持ち駒ドロップ条件チェック:', {
+        isDroppingMode,
+        selectedCapturedPiece: !!selectedCapturedPiece,
+        selectedCapturedPiecePlayer: !!selectedCapturedPiecePlayer
+      });
+      
       if (isDroppingMode && selectedCapturedPiece) {
+        console.log('=== 持ち駒ドロップ処理開始 ===');
+        console.log('持ち駒ドロップモード:', selectedCapturedPiece);
+        
+        // selectedCapturedPieceからプレイヤー情報を取得
+        // CapturedPiecesコンポーネントでは、playerはWASMのプレイヤー値（0または1）として渡される
+        const currentPlayer = board.get_current_player();
+        console.log('現在の手番:', currentPlayer);
+        
+        // 現在の手番の持ち駒かチェック
+        if (selectedCapturedPiecePlayer !== currentPlayer) {
+          console.log('現在の手番の持ち駒ではありません');
+          return;
+        }
+        
+        console.log('プレイヤー詳細:', {
+          selectedPlayer: selectedCapturedPiecePlayer,
+          currentPlayer: currentPlayer,
+          isEqual: selectedCapturedPiecePlayer === currentPlayer
+        });
+        console.log('WASMプレイヤー値:', {
+          Black: (window as any).wasmModule?.Player?.Black,
+          White: (window as any).wasmModule?.Player?.White
+        });
+        
         const newBoard = board.clone();
-        if (newBoard.drop_piece(selectedCapturedPiece, row, col)) {
-          setBoard(newBoard);
-          setSelectedCapturedPiece(null);
-          setIsDroppingMode(false);
-          setValidMoves([]);
+        // selectedCapturedPieceから正しいPiece列挙型を取得
+        const pieceType = selectedCapturedPiece.pieceType;
+        const wasmPiece = (window as any).wasmModule?.Piece;
+        console.log('pieceType:', pieceType, 'wasmPiece:', wasmPiece);
+        console.log('wasmPieceの構造:', Object.keys(wasmPiece), Object.values(wasmPiece));
+        if (wasmPiece && pieceType >= 0 && pieceType <= 7) {
+          // pieceTypeをPiece列挙型に変換
+          const pieceNames = ['Pawn', 'Lance', 'Knight', 'Silver', 'Gold', 'Bishop', 'Rook', 'King'];
+          const pieceName = pieceNames[pieceType];
+          const pieceEnum = wasmPiece[pieceName];
+          console.log('変換されたpieceEnum:', pieceEnum, 'pieceName:', pieceName);
+          console.log('drop_piece呼び出し:', pieceEnum, row, col);
+          
+          // ドロップ可能かチェック
+          const canDrop = newBoard.can_drop_piece(pieceEnum, row, col);
+          console.log('can_drop_piece結果:', canDrop);
+          
+          // 詳細な理由を取得
+          const debugReason = newBoard.debug_can_drop_piece(pieceEnum, row, col);
+          console.log('ドロップ失敗理由:', debugReason);
+          
+          // 歩の場合は二歩の判定の詳細も表示
+          if (pieceEnum === (window as any).wasmModule?.Piece?.Pawn) {
+            const pawnDebug = newBoard.debug_has_pawn_in_column(col, currentPlayer, -1);
+            console.log('二歩の判定詳細:', pawnDebug);
+          }
+          
+          // 角の場合は特別なデバッグ情報を表示
+          if (pieceEnum === (window as any).wasmModule?.Piece?.Bishop) {
+            console.log('角のドロップ判定:');
+            console.log('- 現在の手番:', newBoard.get_current_player());
+            console.log('- ドロップ位置:', row, col);
+            console.log('- 持ち駒数:', newBoard.get_captured_piece_count(newBoard.get_current_player(), pieceEnum));
+          }
+          
+          // 盤面の状態も表示
+          const boardState = newBoard.debug_board_state();
+          console.log('盤面の状態:', boardState);
+          
+          // 持ち駒の状態も表示
+          const capturedPiecesState = newBoard.debug_captured_pieces();
+          console.log('持ち駒の状態:', capturedPiecesState);
+          
+          if (newBoard.drop_piece(pieceEnum, row, col)) {
+            console.log('持ち駒ドロップ成功');
+            setBoard(newBoard);
+            setSelectedCapturedPiece(null);
+            setSelectedCapturedPiecePlayer(null);
+            setIsDroppingMode(false);
+            setValidMoves([]);
+          } else {
+            console.log('持ち駒ドロップ失敗');
+          }
+        } else {
+          console.log('pieceTypeまたはwasmPieceが無効:', pieceType, wasmPiece);
         }
         return;
       }
@@ -407,19 +532,55 @@ export const ShogiBoard: React.FC = () => {
     } catch (err) {
       console.error('盤面の描画中にエラーが発生しました:', err);
     }
-  }, [board, selectedPosition, validMoves, handleMove, isDroppingMode, selectedCapturedPiece]);
+  }, [board, selectedPosition, validMoves, handleMove, isDroppingMode, selectedCapturedPiece, selectedCapturedPiecePlayer]);
 
-  const handleCapturedPieceClick = useCallback((piece: any) => {
-    if (selectedCapturedPiece === piece) {
+  const handleCapturedPieceClick = useCallback((piece: any, player: any) => {
+    console.log('=== 持ち駒クリック詳細デバッグ ===');
+    console.log('piece:', piece);
+    console.log('player:', player);
+    console.log('playerの型:', typeof player);
+    console.log('player === null:', player === null);
+    console.log('player === undefined:', player === undefined);
+    console.log('player === false:', player === false);
+    console.log('player === 0:', player === 0);
+    console.log('player === 1:', player === 1);
+    console.log('WASMプレイヤー値:', {
+      Black: (window as any).wasmModule?.Player?.Black,
+      White: (window as any).wasmModule?.Player?.White
+    });
+    console.log('player === WASM.Black:', player === (window as any).wasmModule?.Player?.Black);
+    console.log('player === WASM.White:', player === (window as any).wasmModule?.Player?.White);
+    console.log('現在のselectedCapturedPiece:', selectedCapturedPiece);
+    console.log('現在の手番:', board?.get_current_player());
+    console.log('プレイヤー比較:', player === board?.get_current_player());
+    console.log('プレイヤー詳細:', {
+      selectedPlayer: player,
+      currentPlayer: board?.get_current_player(),
+      isEqual: player === board?.get_current_player()
+    });
+    
+    // 現在の手番の持ち駒のみ選択可能
+    const currentPlayer = board?.get_current_player();
+    if (player !== currentPlayer) {
+      console.log('現在の手番の持ち駒ではありません');
+      return;
+    }
+    
+    if (selectedCapturedPiece === piece && selectedCapturedPiecePlayer === player) {
+      console.log('持ち駒選択解除');
       setSelectedCapturedPiece(null);
+      setSelectedCapturedPiecePlayer(null);
       setIsDroppingMode(false);
     } else {
+      console.log('持ち駒選択:', piece, 'プレイヤー:', player);
+      console.log('setSelectedCapturedPiecePlayerに設定する値:', player);
       setSelectedCapturedPiece(piece);
+      setSelectedCapturedPiecePlayer(player);
       setIsDroppingMode(true);
       setSelectedPosition(null);
       setValidMoves([]);
     }
-  }, [selectedCapturedPiece]);
+  }, [selectedCapturedPiece, selectedCapturedPiecePlayer, board]);
 
   return (
     <ErrorBoundary>

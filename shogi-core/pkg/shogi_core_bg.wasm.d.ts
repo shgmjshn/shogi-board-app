@@ -34,7 +34,11 @@ export const board_get_captured_piece_count: (a: number, b: number, c: number) =
 export const board_add_captured_piece: (a: number, b: number, c: number) => void;
 export const board_use_captured_piece: (a: number, b: number, c: number) => number;
 export const board_can_drop_piece: (a: number, b: number, c: number, d: number) => number;
+export const board_debug_can_drop_piece: (a: number, b: number, c: number, d: number) => [number, number];
 export const board_drop_piece: (a: number, b: number, c: number, d: number) => number;
+export const board_debug_board_state: (a: number) => [number, number];
+export const board_debug_has_pawn_in_column: (a: number, b: number, c: number, d: number) => [number, number];
+export const board_debug_captured_pieces: (a: number) => [number, number];
 export const hello_shogi: () => [number, number];
 export const __wbindgen_export_0: WebAssembly.Table;
 export const __wbindgen_free: (a: number, b: number, c: number) => void;

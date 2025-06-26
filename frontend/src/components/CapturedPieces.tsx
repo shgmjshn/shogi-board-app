@@ -3,7 +3,7 @@ import './CapturedPieces.css';
 
 interface CapturedPiecesProps {
   board: any;
-  onPieceClick: (piece: any) => void;
+  onPieceClick: (piece: any, player: any) => void;
   selectedPiece: any;
   player: any;
   playerName: string;
@@ -20,6 +20,7 @@ export const CapturedPieces: React.FC<CapturedPiecesProps> = ({
   if (!wasm || !board) return null;
 
   const getPieceName = (pieceType: number): string => {
+    console.log('getPieceName呼び出し:', pieceType);
     const pieceNames = [
       { piece: wasm.Piece.Pawn, name: '歩' },
       { piece: wasm.Piece.Lance, name: '香' },
@@ -28,10 +29,17 @@ export const CapturedPieces: React.FC<CapturedPiecesProps> = ({
       { piece: wasm.Piece.Gold, name: '金' },
       { piece: wasm.Piece.Bishop, name: '角' },
       { piece: wasm.Piece.Rook, name: '飛' },
+      { piece: wasm.Piece.King, name: '玉' },
     ];
     
-    const piece = pieceNames.find(p => p.piece === pieceType);
-    return piece ? piece.name : '?';
+    // pieceTypeは配列のインデックスなので、直接アクセス
+    if (pieceType >= 0 && pieceType < pieceNames.length) {
+      const name = pieceNames[pieceType].name;
+      console.log('getPieceName結果:', pieceType, '->', name);
+      return name;
+    }
+    console.log('getPieceName結果: 範囲外 -> ?');
+    return '?';
   };
 
   // 特定のプレイヤーの持ち駒を取得
@@ -39,8 +47,20 @@ export const CapturedPieces: React.FC<CapturedPiecesProps> = ({
     if (!board || !wasm) return [];
     
     const pieces = [];
-    for (let i = 0; i < 8; i++) {
-      const count = board.get_captured_piece_count(player, i);
+    const pieceTypes = [
+      wasm.Piece.Pawn,
+      wasm.Piece.Lance,
+      wasm.Piece.Knight,
+      wasm.Piece.Silver,
+      wasm.Piece.Gold,
+      wasm.Piece.Bishop,
+      wasm.Piece.Rook,
+      wasm.Piece.King
+    ];
+    
+    for (let i = 0; i < pieceTypes.length; i++) {
+      const pieceType = pieceTypes[i];
+      const count = board.get_captured_piece_count(player, pieceType);
       if (count > 0) {
         pieces.push({
           pieceType: i,
@@ -60,7 +80,7 @@ export const CapturedPieces: React.FC<CapturedPiecesProps> = ({
           <div
             key={index}
             className={`captured-piece ${selectedPiece?.pieceType === piece.pieceType ? 'selected' : ''}`}
-            onClick={() => onPieceClick(piece)}
+            onClick={() => onPieceClick(piece, player)}
           >
             <span className="piece-name">{piece.name}</span>
             <span className="piece-count">×{piece.count}</span>
