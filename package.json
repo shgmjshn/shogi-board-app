@@ -10,6 +10,7 @@
     "build:rust": "cd shogi-core && wasm-pack build --release",
     "build:frontend": "npm run build --workspace=frontend",
     "build": "npm run build:rust && npm run build:frontend",
+    "build:vercel": "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && source $HOME/.cargo/env && npm run build",
     "preview": "npm run preview --workspace=frontend"
   },
   "devDependencies": {}

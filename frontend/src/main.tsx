@@ -12,6 +12,10 @@ const initWasm = async () => {
     const wasmModule = await import('shogi-core');
     console.log('WASMモジュール読み込み完了:', wasmModule);
 
+    // WASMモジュールの初期化を待機
+    await wasmModule.default();
+    console.log('WASMモジュール初期化完了');
+
     // Boardクラスなどが正しくimportできているか確認
     if (!wasmModule.Board || typeof wasmModule.Board !== 'function') {
       throw new Error('Boardクラスが見つかりません');

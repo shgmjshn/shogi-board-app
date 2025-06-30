@@ -40,8 +40,6 @@ impl Position {
     pub fn new(row: i32, column: i32) -> Position {
         // 入力値の検証
         if row < 0 || row >= 9 || column < 0 || column >= 9 {
-            // エラーログを出力
-            web_sys::console::error_1(&format!("Position: 無効な座標 ({}, {})", row, column).into());
             // デフォルト値として(0, 0)を返す
             Position { row: 0, column: 0 }
         } else {
@@ -51,13 +49,6 @@ impl Position {
 
     fn is_valid(&self) -> bool {
         self.row >= 0 && self.row < 9 && self.column >= 0 && self.column < 9
-    }
-
-    fn is_promotion_zone(&self, player: Player) -> bool {
-        match player {
-            Player::Black => self.row >= 6, // 6,7,8段目
-            Player::White => self.row <= 2, // 0,1,2段目
-        }
     }
 
     // デバッグ用のメソッド
@@ -155,9 +146,6 @@ impl Board {
             if captured_player != player {
                 // 成り駒は元の駒に戻して持ち駒に追加
                 let original_piece = self.get_original_piece(captured_piece);
-                web_sys::console::log_1(&format!("駒を取得: {} -> {}", 
-                    self.piece_to_string(captured_piece), 
-                    self.piece_to_string(original_piece)).into());
                 self.add_captured_piece(player, original_piece);
             }
         }
@@ -186,9 +174,6 @@ impl Board {
             if captured_player != player {
                 // 成り駒は元の駒に戻して持ち駒に追加
                 let original_piece = self.get_original_piece(captured_piece);
-                web_sys::console::log_1(&format!("駒を取得: {} -> {}", 
-                    self.piece_to_string(captured_piece), 
-                    self.piece_to_string(original_piece)).into());
                 self.add_captured_piece(player, original_piece);
             }
         }
@@ -325,6 +310,49 @@ impl Board {
     }
 
     #[wasm_bindgen]
+    pub fn set_piece_by_coords(&mut self, row: i32, col: i32, piece: Piece, player: Player) -> bool {
+        let position = Position::new(row, col);
+        self.set_piece(position, piece, player)
+    }
+
+    #[wasm_bindgen]
+    pub fn clear_square(&mut self, position: Position) -> bool {
+        if !position.is_valid() {
+            return false;
+        }
+        self.pieces[position.row as usize][position.column as usize] = (Piece::Empty, Player::Black);
+        true
+    }
+
+    #[wasm_bindgen]
+    pub fn clear_square_by_coords(&mut self, row: i32, col: i32) -> bool {
+        let position = Position::new(row, col);
+        self.clear_square(position)
+    }
+
+    #[wasm_bindgen]
+    pub fn clear_board(&mut self) {
+        for row in 0..9 {
+            for col in 0..9 {
+                self.pieces[row][col] = (Piece::Empty, Player::Black);
+            }
+        }
+    }
+
+    #[wasm_bindgen]
+    pub fn set_current_player(&mut self, player: Player) {
+        self.current_player = player;
+    }
+
+    #[wasm_bindgen]
+    pub fn reset_to_initial_position(&mut self) {
+        self.clear_board();
+        self.current_player = Player::Black;
+        self.captured_pieces = [[0; 8]; 2];
+        self.initialize();
+    }
+
+    #[wasm_bindgen]
     pub fn get_captured_piece_count(&self, player: Player, piece: Piece) -> i32 {
         let player_index = if player == Player::Black { 0 } else { 1 };
         let piece_index = self.piece_to_index(piece);
@@ -358,6 +386,38 @@ impl Board {
         } else {
             false
         }
+    }
+
+    #[wasm_bindgen]
+    pub fn set_captured_piece_count(&mut self, player: Player, piece: Piece, count: i32) -> bool {
+        let player_index = if player == Player::Black { 0 } else { 1 };
+        let piece_index = self.piece_to_index(piece);
+        if piece_index >= 0 && piece_index < 8 && count >= 0 {
+            self.captured_pieces[player_index][piece_index as usize] = count;
+            true
+        } else {
+            false
+        }
+    }
+
+    #[wasm_bindgen]
+    pub fn clear_captured_pieces(&mut self, player: Player) {
+        let player_index = if player == Player::Black { 0 } else { 1 };
+        for i in 0..8 {
+            self.captured_pieces[player_index][i] = 0;
+        }
+    }
+
+    #[wasm_bindgen]
+    pub fn get_all_captured_pieces(&self) -> Vec<i32> {
+        let mut result = Vec::new();
+        for player in [Player::Black, Player::White] {
+            let player_index = if player == Player::Black { 0 } else { 1 };
+            for piece_index in 0..8 {
+                result.push(self.captured_pieces[player_index][piece_index]);
+            }
+        }
+        result
     }
 
     #[wasm_bindgen]
@@ -948,26 +1008,6 @@ impl Board {
             Piece::PromotedBishop => Piece::Bishop,
             Piece::PromotedRook => Piece::Rook,
             _ => piece, // 成り駒でない場合はそのまま
-        }
-    }
-
-    fn piece_to_string(&self, piece: Piece) -> String {
-        match piece {
-            Piece::Empty => "空".to_string(),
-            Piece::Pawn => "歩".to_string(),
-            Piece::Lance => "香".to_string(),
-            Piece::Knight => "桂".to_string(),
-            Piece::Silver => "銀".to_string(),
-            Piece::Gold => "金".to_string(),
-            Piece::Bishop => "角".to_string(),
-            Piece::Rook => "飛".to_string(),
-            Piece::King => "玉".to_string(),
-            Piece::PromotedPawn => "と".to_string(),
-            Piece::PromotedLance => "成香".to_string(),
-            Piece::PromotedKnight => "成桂".to_string(),
-            Piece::PromotedSilver => "成銀".to_string(),
-            Piece::PromotedBishop => "馬".to_string(),
-            Piece::PromotedRook => "龍".to_string(),
         }
     }
 

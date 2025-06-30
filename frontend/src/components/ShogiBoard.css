@@ -1,184 +1,25 @@
 .shogi-board {
   display: flex;
   flex-direction: column;
-  gap: 0px;
-  background-color: #8B4513;
-  padding: 10px;
-  border: 3px solid #654321;
-  border-radius: 5px;
-  width: fit-content;
-  margin: 0 auto;
-}
-
-.board-row {
-  display: flex;
-  gap: 0px;
-}
-
-.square {
-  width: 50px;
-  height: 50px;
-  display: flex;
   align-items: center;
-  justify-content: center;
-  font-size: 24px;
-  cursor: pointer;
-  position: relative;
-  background-color: #f0d9b5;
-  user-select: none;
-  transition: background-color 0.2s ease;
-  border: 1px solid #8B4513;
+  gap: 20px;
+  padding: 20px;
+  font-family: 'Noto Sans JP', sans-serif;
 }
 
-.square:hover {
-  background-color: #E6D5AC;
-}
-
-/* 後手（白）の駒のスタイル */
-.square.white {
-  transform: rotate(180deg);
-  color: #000; /* 濃い赤色で白の駒を表示 */
-}
-
-.square.white::after {
-  content: attr(data-piece);
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%) rotate(360deg);
-  font-size: 24px;
-  font-weight: bold;
-  color: #000;
-}
-
-/* 先手（黒）の駒のスタイル */
-.square:not(.white) {
-  font-weight: bold;
-  color: #000;
-}
-
-/* 選択状態と有効な移動先のスタイル */
-.square.selected {
-  background-color: #aec6cf;
-}
-
-.square.valid-move {
-  background-color: #98fb98;
-  position: relative;
-}
-
-.square.valid-move:hover {
-  background-color: #7CCD7C;
-}
-
-.square.valid-move::before {
-  content: '';
-  position: absolute;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background-color: rgba(0, 255, 0, 0.3);
-  z-index: 1;
-}
-
-/* 持ち駒ドロップモード */
-.square.dropping-mode {
-  background-color: #fff3cd;
-  border: 2px dashed #ffc107;
-}
-
-.square.dropping-mode:hover {
-  background-color: #ffeaa7;
-  border-color: #f39c12;
-}
-
-.current-player {
-  margin-top: 20px;
-  text-align: center;
-  font-size: 18px;
-  font-weight: bold;
-}
-
-.board-controls {
-  margin-top: 20px;
-  text-align: center;
-}
-
-/* 駒の文字のスタイル */
-.black-piece {
-  transform: rotate(0deg);
-  font-weight: bold;
-}
-
-/* 後手の駒の元の文字を非表示 */
-.square.white > * {
-  display: none;
-}
-
-/* 成り選択ダイアログ */
-.promotion-dialog {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.5);
+.board-container {
   display: flex;
-  justify-content: center;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.board-center {
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  z-index: 1000;
+  gap: 10px;
 }
 
-.promotion-content {
-  background-color: white;
-  padding: 30px;
-  border-radius: 10px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-  text-align: center;
-}
-
-.promotion-content h3 {
-  margin: 0 0 20px 0;
-  font-size: 20px;
-  color: #333;
-}
-
-.promotion-buttons {
-  display: flex;
-  gap: 15px;
-  justify-content: center;
-}
-
-.promote-button,
-.not-promote-button {
-  padding: 12px 24px;
-  border: none;
-  border-radius: 6px;
-  font-size: 16px;
-  font-weight: bold;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.promote-button {
-  background-color: #4CAF50;
-  color: white;
-}
-
-.promote-button:hover {
-  background-color: #45a049;
-}
-
-.not-promote-button {
-  background-color: #f44336;
-  color: white;
-}
-
-.not-promote-button:hover {
-  background-color: #da190b;
-}
-
-/* メインレイアウト */
 .board-layout {
   display: flex;
   align-items: flex-start;
@@ -186,13 +27,6 @@
   justify-content: center;
 }
 
-.board-center {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-/* 持ち駒表示エリア */
 .captured-pieces-left {
   display: flex;
   flex-direction: column;
@@ -215,7 +49,325 @@
   min-height: 400px;
 }
 
-/* 既存のcaptured-piecesクラスは削除または非表示に */
+.board {
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  grid-template-rows: repeat(9, 1fr);
+  gap: 1px;
+  background-color: #8B4513;
+  padding: 10px;
+  border: 3px solid #654321;
+  border-radius: 8px;
+  width: 450px;
+  height: 450px;
+}
+
+.square {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #F5DEB3;
+  border: 1px solid #8B4513;
+  font-size: 24px;
+  font-weight: bold;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.square:hover {
+  background-color: #DEB887;
+}
+
+.square.selected {
+  background-color: #FFD700;
+  box-shadow: inset 0 0 10px rgba(255, 215, 0, 0.5);
+}
+
+.square.valid-move {
+  background-color: #90EE90;
+  box-shadow: inset 0 0 10px rgba(144, 238, 144, 0.5);
+}
+
+.square.drag-over {
+  background-color: #FFB6C1;
+  box-shadow: inset 0 0 10px rgba(255, 182, 193, 0.5);
+  transform: scale(1.05);
+}
+
+.piece {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  transition: all 0.2s ease;
+}
+
+.piece:active {
+  cursor: grabbing;
+}
+
+.piece.black {
+  color: #000;
+}
+
+.piece.white {
+  color: #FF0000;
+}
+
 .captured-pieces {
-  display: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 120px;
+}
+
+.captured-pieces h3 {
+  margin: 0;
+  text-align: center;
+  font-size: 14px;
+  color: #333;
+}
+
+.captured-pieces-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 5px;
+  background-color: #F5F5DC;
+  padding: 10px;
+  border: 2px solid #8B4513;
+  border-radius: 5px;
+  min-height: 200px;
+}
+
+.captured-piece {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #F5DEB3;
+  border: 1px solid #8B4513;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.2s ease;
+  min-height: 30px;
+}
+
+.captured-piece:hover {
+  background-color: #DEB887;
+}
+
+.captured-piece.black {
+  color: #000;
+}
+
+.captured-piece.white {
+  color: #FF0000;
+}
+
+.current-player {
+  font-size: 18px;
+  font-weight: bold;
+  color: #333;
+  text-align: center;
+  padding: 10px;
+  background-color: #F5F5DC;
+  border: 2px solid #8B4513;
+  border-radius: 5px;
+  min-width: 200px;
+}
+
+.controls {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.control-button {
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: bold;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background-color: #4CAF50;
+  color: white;
+}
+
+.control-button:hover {
+  background-color: #45a049;
+  transform: translateY(-2px);
+}
+
+.control-button:active {
+  transform: translateY(0);
+}
+
+.control-button.secondary {
+  background-color: #2196F3;
+}
+
+.control-button.secondary:hover {
+  background-color: #1976D2;
+}
+
+.control-button.danger {
+  background-color: #f44336;
+}
+
+.control-button.danger:hover {
+  background-color: #d32f2f;
+}
+
+.control-button.warning {
+  background-color: #ff9800;
+}
+
+.control-button.warning:hover {
+  background-color: #f57c00;
+}
+
+.edit-controls {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 10px;
+}
+
+.edit-controls .control-button {
+  font-size: 12px;
+  padding: 8px 16px;
+}
+
+.piece-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 120px;
+}
+
+.piece-selector h3 {
+  margin: 0;
+  text-align: center;
+  font-size: 14px;
+  color: #333;
+}
+
+.piece-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 5px;
+  background-color: #F5F5DC;
+  padding: 10px;
+  border: 2px solid #8B4513;
+  border-radius: 5px;
+}
+
+.piece-option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #F5DEB3;
+  border: 1px solid #8B4513;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.2s ease;
+  min-height: 30px;
+}
+
+.piece-option:hover {
+  background-color: #DEB887;
+}
+
+.piece-option.selected {
+  background-color: #FFD700;
+  box-shadow: inset 0 0 5px rgba(255, 215, 0, 0.5);
+}
+
+.piece-option.black {
+  color: #000;
+}
+
+.piece-option.white {
+  color: #FF0000;
+}
+
+.promotion-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: white;
+  padding: 20px;
+  border: 2px solid #8B4513;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+}
+
+.promotion-dialog h3 {
+  margin: 0 0 15px 0;
+  text-align: center;
+  color: #333;
+}
+
+.promotion-buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.promotion-button {
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: bold;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.promotion-button.promote {
+  background-color: #4CAF50;
+  color: white;
+}
+
+.promotion-button.promote:hover {
+  background-color: #45a049;
+}
+
+.promotion-button.no-promote {
+  background-color: #2196F3;
+  color: white;
+}
+
+.promotion-button.no-promote:hover {
+  background-color: #1976D2;
+}
+
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+}
+
+.square.white {
+  transform: rotate(180deg);
+}
+
+.square:hover {
+  background-color: #DEB887;
 } 

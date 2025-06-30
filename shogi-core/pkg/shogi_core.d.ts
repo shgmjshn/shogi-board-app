@@ -38,9 +38,18 @@ export class Board {
   can_promote(from_row: number, from_col: number, to_row: number, to_col: number): boolean;
   clone(): Board;
   set_piece(position: Position, piece: Piece, player: Player): boolean;
+  set_piece_by_coords(row: number, col: number, piece: Piece, player: Player): boolean;
+  clear_square(position: Position): boolean;
+  clear_square_by_coords(row: number, col: number): boolean;
+  clear_board(): void;
+  set_current_player(player: Player): void;
+  reset_to_initial_position(): void;
   get_captured_piece_count(player: Player, piece: Piece): number;
   add_captured_piece(player: Player, piece: Piece): void;
   use_captured_piece(player: Player, piece: Piece): boolean;
+  set_captured_piece_count(player: Player, piece: Piece, count: number): boolean;
+  clear_captured_pieces(player: Player): void;
+  get_all_captured_pieces(): Int32Array;
   can_drop_piece(piece: Piece, to_row: number, to_col: number): boolean;
   debug_can_drop_piece(piece: Piece, to_row: number, to_col: number): string;
   drop_piece(piece: Piece, to_row: number, to_col: number): boolean;
@@ -63,3 +72,82 @@ export class Position {
   row: number;
   column: number;
 }
+
+export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
+
+export interface InitOutput {
+  readonly memory: WebAssembly.Memory;
+  readonly __wbg_position_free: (a: number, b: number) => void;
+  readonly __wbg_get_position_row: (a: number) => number;
+  readonly __wbg_set_position_row: (a: number, b: number) => void;
+  readonly __wbg_get_position_column: (a: number) => number;
+  readonly __wbg_set_position_column: (a: number, b: number) => void;
+  readonly position_new: (a: number, b: number) => number;
+  readonly position_debug_info: (a: number) => [number, number];
+  readonly position_get_row: (a: number) => number;
+  readonly position_get_column: (a: number) => number;
+  readonly __wbg_pieceinfo_free: (a: number, b: number) => void;
+  readonly __wbg_get_pieceinfo_piece: (a: number) => number;
+  readonly __wbg_set_pieceinfo_piece: (a: number, b: number) => void;
+  readonly __wbg_get_pieceinfo_player: (a: number) => number;
+  readonly __wbg_set_pieceinfo_player: (a: number, b: number) => void;
+  readonly __wbg_board_free: (a: number, b: number) => void;
+  readonly board_new: () => number;
+  readonly board_get_piece: (a: number, b: number) => number;
+  readonly board_is_valid_move: (a: number, b: number, c: number) => number;
+  readonly board_make_move: (a: number, b: number, c: number) => number;
+  readonly board_make_move_with_promotion: (a: number, b: number, c: number, d: number) => number;
+  readonly board_get_current_player: (a: number) => number;
+  readonly board_get_valid_moves: (a: number, b: number) => [number, number];
+  readonly board_get_valid_moves_by_coords: (a: number, b: number, c: number) => [number, number];
+  readonly board_get_piece_by_coords: (a: number, b: number, c: number) => number;
+  readonly board_make_move_by_coords: (a: number, b: number, c: number, d: number, e: number) => number;
+  readonly board_make_move_by_coords_with_promotion: (a: number, b: number, c: number, d: number, e: number, f: number) => number;
+  readonly board_can_promote: (a: number, b: number, c: number, d: number, e: number) => number;
+  readonly board_clone: (a: number) => number;
+  readonly board_set_piece: (a: number, b: number, c: number, d: number) => number;
+  readonly board_set_piece_by_coords: (a: number, b: number, c: number, d: number, e: number) => number;
+  readonly board_clear_square: (a: number, b: number) => number;
+  readonly board_clear_square_by_coords: (a: number, b: number, c: number) => number;
+  readonly board_clear_board: (a: number) => void;
+  readonly board_set_current_player: (a: number, b: number) => void;
+  readonly board_reset_to_initial_position: (a: number) => void;
+  readonly board_get_captured_piece_count: (a: number, b: number, c: number) => number;
+  readonly board_add_captured_piece: (a: number, b: number, c: number) => void;
+  readonly board_use_captured_piece: (a: number, b: number, c: number) => number;
+  readonly board_set_captured_piece_count: (a: number, b: number, c: number, d: number) => number;
+  readonly board_clear_captured_pieces: (a: number, b: number) => void;
+  readonly board_get_all_captured_pieces: (a: number) => [number, number];
+  readonly board_can_drop_piece: (a: number, b: number, c: number, d: number) => number;
+  readonly board_debug_can_drop_piece: (a: number, b: number, c: number, d: number) => [number, number];
+  readonly board_drop_piece: (a: number, b: number, c: number, d: number) => number;
+  readonly board_debug_board_state: (a: number) => [number, number];
+  readonly board_debug_has_pawn_in_column: (a: number, b: number, c: number, d: number) => [number, number];
+  readonly board_debug_captured_pieces: (a: number) => [number, number];
+  readonly hello_shogi: () => [number, number];
+  readonly __wbindgen_export_0: WebAssembly.Table;
+  readonly __wbindgen_free: (a: number, b: number, c: number) => void;
+  readonly __externref_drop_slice: (a: number, b: number) => void;
+  readonly __wbindgen_start: () => void;
+}
+
+export type SyncInitInput = BufferSource | WebAssembly.Module;
+/**
+* Instantiates the given `module`, which can either be bytes or
+* a precompiled `WebAssembly.Module`.
+*
+* @param {{ module: SyncInitInput }} module - Passing `SyncInitInput` directly is deprecated.
+*
+* @returns {InitOutput}
+*/
+export function initSync(module: { module: SyncInitInput } | SyncInitInput): InitOutput;
+
+/**
+* If `module_or_path` is {RequestInfo} or {URL}, makes a request and
+* for everything else, calls `WebAssembly.instantiate` directly.
+*
+* @param {{ module_or_path: InitInput | Promise<InitInput> }} module_or_path - Passing `InitInput` directly is deprecated.
+*
+* @returns {Promise<InitOutput>}
+*/
+export default function __wbg_init (module_or_path?: { module_or_path: InitInput | Promise<InitInput> } | InitInput | Promise<InitInput>): Promise<InitOutput>;

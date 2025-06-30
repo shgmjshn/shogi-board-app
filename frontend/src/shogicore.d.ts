@@ -58,11 +58,24 @@ declare module 'shogi_core' {
     get_valid_moves_by_coords(from_row: number, from_col: number): Position[];
     clone(): Board;
     set_piece(position: Position, piece: Piece, player: Player): boolean;
+    set_piece_by_coords(row: number, col: number, piece: Piece, player: Player): boolean;
+    clear_square(position: Position): boolean;
+    clear_square_by_coords(row: number, col: number): boolean;
+    clear_board(): void;
+    set_current_player(player: Player): void;
+    reset_to_initial_position(): void;
     get_captured_piece_count(player: Player, piece: Piece): number;
+    set_captured_piece_count(player: Player, piece: Piece, count: number): boolean;
     add_captured_piece(player: Player, piece: Piece): void;
+    clear_captured_pieces(player: Player): void;
+    get_all_captured_pieces(): number[];
     use_captured_piece(player: Player, piece: Piece): boolean;
     can_drop_piece(piece: Piece, to_row: number, to_col: number): boolean;
     drop_piece(piece: Piece, to_row: number, to_col: number): boolean;
+    debug_board_state(): string;
+    debug_can_drop_piece(piece: Piece, to_row: number, to_col: number): string;
+    debug_has_pawn_in_column(col: number, player: Player, except_row: number): string;
+    debug_captured_pieces(): string;
   }
 
   export function hello_shogi(): string;

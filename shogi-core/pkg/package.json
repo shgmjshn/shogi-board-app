@@ -11,13 +11,11 @@
   "files": [
     "shogi_core_bg.wasm",
     "shogi_core.js",
-    "shogi_core_bg.js",
     "shogi_core.d.ts"
   ],
   "main": "shogi_core.js",
   "types": "shogi_core.d.ts",
   "sideEffects": [
-    "./shogi_core.js",
     "./snippets/*"
   ]
 }

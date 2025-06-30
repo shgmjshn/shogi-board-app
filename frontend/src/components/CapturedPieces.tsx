@@ -7,6 +7,10 @@ interface CapturedPiecesProps {
   selectedPiece: any;
   player: any;
   playerName: string;
+  isEditMode?: boolean;
+  onDragStart?: (piece: any, player: any, event: React.DragEvent) => void;
+  onDrop?: (player: any, piece: any, event: React.DragEvent) => void;
+  onDragOver?: (event: React.DragEvent) => void;
 }
 
 export const CapturedPieces: React.FC<CapturedPiecesProps> = ({ 
@@ -14,7 +18,11 @@ export const CapturedPieces: React.FC<CapturedPiecesProps> = ({
   onPieceClick, 
   selectedPiece, 
   player, 
-  playerName 
+  playerName,
+  isEditMode = false,
+  onDragStart,
+  onDrop,
+  onDragOver
 }) => {
   const wasm = (window as any).wasmModule;
   if (!wasm || !board) return null;
@@ -75,12 +83,18 @@ export const CapturedPieces: React.FC<CapturedPiecesProps> = ({
   return (
     <div className="captured-pieces-container">
       <h3>{playerName}の持ち駒</h3>
-      <div className="captured-pieces-list">
+      <div 
+        className="captured-pieces-list"
+        onDrop={onDrop ? (e) => onDrop(player, null, e) : undefined}
+        onDragOver={onDragOver}
+      >
         {capturedPieces.map((piece, index) => (
           <div
             key={index}
             className={`captured-piece ${selectedPiece?.pieceType === piece.pieceType ? 'selected' : ''}`}
             onClick={() => onPieceClick(piece, player)}
+            draggable={isEditMode}
+            onDragStart={onDragStart ? (e) => onDragStart(piece, player, e) : undefined}
           >
             <span className="piece-name">{piece.name}</span>
             <span className="piece-count">×{piece.count}</span>
