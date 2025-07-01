@@ -22,6 +22,7 @@ interface SquareProps {
   onClick: (row: number, col: number) => void;
   isDroppingMode: boolean;
   isEditMode?: boolean;
+  pieceState?: number; // 駒の状態 (0: 通常, 1: 成り, 2: 反転, 3: 成り+反転)
   onDrop?: (row: number, col: number, event: React.DragEvent) => void;
   onDragOver?: (event: React.DragEvent) => void;
   onDragStart?: (piece: any, player: any, event: React.DragEvent) => void;
@@ -29,9 +30,35 @@ interface SquareProps {
   onDragLeave?: (event: React.DragEvent) => void;
 }
 
-const Square: React.FC<SquareProps> = ({ row, col, piece, player, isSelected, isValidMove, onClick, isDroppingMode, isEditMode, onDrop, onDragOver, onDragStart, onDragEnd, onDragLeave }) => {
+const Square: React.FC<SquareProps> = ({ row, col, piece, player, isSelected, isValidMove, onClick, isDroppingMode, isEditMode, pieceState = 0, onDrop, onDragOver, onDragStart, onDragEnd, onDragLeave }) => {
+  const wasm = (window as any).wasmModule;
+  
+  // 駒の状態に応じて表示を変更
+  let displayPiece = piece;
+  let displayPlayer = player;
+  
+  if (wasm) {
+    // 状態2または3の場合（反転状態）
+    if (pieceState === 2 || pieceState === 3) {
+      displayPlayer = player === wasm.Player.Black ? wasm.Player.White : wasm.Player.Black;
+    }
+    
+    // 状態1または3の場合（成り状態）
+    if (pieceState === 1 || pieceState === 3) {
+      // 成り駒に変換
+      if (piece === wasm.Piece.Pawn) displayPiece = wasm.Piece.PromotedPawn;
+      else if (piece === wasm.Piece.Lance) displayPiece = wasm.Piece.PromotedLance;
+      else if (piece === wasm.Piece.Knight) displayPiece = wasm.Piece.PromotedKnight;
+      else if (piece === wasm.Piece.Silver) displayPiece = wasm.Piece.PromotedSilver;
+      else if (piece === wasm.Piece.Bishop) displayPiece = wasm.Piece.PromotedBishop;
+      else if (piece === wasm.Piece.Rook) displayPiece = wasm.Piece.PromotedRook;
+      // 王・玉、金、成り駒はそのまま
+    }
+  }
+  
+
+  
   const getPieceText = (piece: any, player: any) => {
-    const wasm = (window as any).wasmModule;
     if (!wasm) return '';
     
     const pieceMap: Record<any, string> = {
@@ -43,7 +70,7 @@ const Square: React.FC<SquareProps> = ({ row, col, piece, player, isSelected, is
       [wasm.Piece.Gold]: '金',
       [wasm.Piece.Bishop]: '角',
       [wasm.Piece.Rook]: '飛',
-      [wasm.Piece.King]: player === wasm.Player.Black ? '玉' : '王',
+      [wasm.Piece.King]: displayPlayer === wasm.Player.Black ? '玉' : '王',
       [wasm.Piece.PromotedPawn]: 'と',
       [wasm.Piece.PromotedLance]: '成香',
       [wasm.Piece.PromotedKnight]: '成桂',
@@ -51,12 +78,14 @@ const Square: React.FC<SquareProps> = ({ row, col, piece, player, isSelected, is
       [wasm.Piece.PromotedBishop]: '馬',
       [wasm.Piece.PromotedRook]: '龍',
     };
-    return pieceMap[piece] || '';
+    return pieceMap[displayPiece] || '';
   };
 
   const className = `square ${isSelected ? 'selected' : ''} ${isValidMove ? 'valid-move' : ''} ${
-    player === (window as any).wasmModule?.Player?.White ? 'white' : ''
+    displayPlayer === (window as any).wasmModule?.Player?.White ? 'white' : ''
   } ${isDroppingMode ? 'dropping-mode' : ''}`;
+  
+  console.log(`className計算: 位置(${row}, ${col}), displayPlayer: ${displayPlayer}, className: ${className}`);
 
   const handleClick = useCallback(() => {
     // 入力値の範囲チェック
@@ -127,6 +156,8 @@ const renderBoard = (
   handleSquareClick: (row: number, col: number) => void,
   isDroppingMode: boolean = false,
   isEditMode: boolean = false,
+  getPieceState?: (row: number, col: number) => number,
+  isBoardFlipped: boolean = false,
   onDrop?: (row: number, col: number, event: React.DragEvent) => void,
   onDragOver?: (event: React.DragEvent) => void,
   onDragStart?: (piece: any, player: any, event: React.DragEvent) => void,
@@ -134,8 +165,13 @@ const renderBoard = (
   onDragLeave?: (event: React.DragEvent) => void
 ) => {
   const squares = [];
-  for (let row = 8; row >= 0; row--) {
-    for (let col = 0; col < 9; col++) {
+  
+  // 盤面反転に応じて表示順序を変更
+  const rowOrder = isBoardFlipped ? [0, 1, 2, 3, 4, 5, 6, 7, 8] : [8, 7, 6, 5, 4, 3, 2, 1, 0];
+  const colOrder = isBoardFlipped ? [8, 7, 6, 5, 4, 3, 2, 1, 0] : [0, 1, 2, 3, 4, 5, 6, 7, 8];
+  
+  for (const row of rowOrder) {
+    for (const col of colOrder) {
       try {
         // 新しい座標ベースのメソッドを使用
         let piece = (window as any).wasmModule?.Piece?.Empty;
@@ -204,6 +240,7 @@ const renderBoard = (
             onClick={handleSquareClick}
             isDroppingMode={isDroppingMode}
             isEditMode={isEditMode}
+            pieceState={getPieceState ? getPieceState(row, col) : 0}
             onDrop={onDrop}
             onDragOver={onDragOver}
             onDragStart={onDragStart}
@@ -255,6 +292,7 @@ export const ShogiBoard: React.FC = () => {
   const [draggedPlayer, setDraggedPlayer] = useState<any>(null);
   const [isBoardFlipped, setIsBoardFlipped] = useState(false);
   const [dragStartPosition, setDragStartPosition] = useState<{row: number, col: number} | null>(null);
+  const [pieceStates, setPieceStates] = useState<Record<string, number>>({}); // 駒の状態管理 (0: 通常, 1: 成り, 2: 反転, 3: 成り+反転)
 
   // WebAssemblyモジュールの初期化を一度だけ行う
   useEffect(() => {
@@ -434,14 +472,14 @@ export const ShogiBoard: React.FC = () => {
       return;
     }
     
-    const createPosition = (r: number, c: number): any | null => {
-      try {
-        return new window.wasmModule.Position(r, c);
-      } catch (err) {
-        console.error(`Position作成エラー: (${r}, ${c})`, err);
-        return null;
-      }
-    };
+      const createPosition = (r: number, c: number): any | null => {
+    try {
+      return new window.wasmModule.Position(r, c);
+    } catch (err) {
+      console.error(`Position作成エラー: (${r}, ${c})`, err);
+      return null;
+    }
+  };
 
     try {
       // 持ち駒ドロップモードの場合
@@ -669,6 +707,8 @@ export const ShogiBoard: React.FC = () => {
     newBoard.reset_to_initial_position();
     setIsBoardFlipped(false);
     setBoard(newBoard);
+    // 平手初期状態に戻す際に駒の状態をリセット
+    setPieceStates({});
   }, [board]);
 
   const handleResetToMatePosition = useCallback(() => {
@@ -786,8 +826,34 @@ export const ShogiBoard: React.FC = () => {
     setBoard(newBoard);
   }, [board, isBoardFlipped]);
 
+  // 駒の状態を取得する関数
+  const getPieceState = useCallback((row: number, col: number): number => {
+    const key = `${row}-${col}`;
+    return pieceStates[key] || 0;
+  }, [pieceStates]);
+
+  // 駒の状態を次の状態に変更する関数
+  const cyclePieceState = useCallback((row: number, col: number) => {
+    const key = `${row}-${col}`;
+    setPieceStates(prev => {
+      const currentState = prev[key] || 0;
+      const nextState = (currentState + 1) % 4;
+      return {
+        ...prev,
+        [key]: nextState
+      };
+    });
+  }, []);
+
   const handleEditSquareClick = useCallback((row: number, col: number) => {
     if (!board || !isEditMode) return;
+    
+    // 駒が存在する場合は状態を変更
+    const pieceInfo = board.get_piece_by_coords(row, col);
+    if (pieceInfo.piece !== (window as any).wasmModule?.Piece?.Empty) {
+      cyclePieceState(row, col);
+      return;
+    }
     
     if (selectedEditPiece) {
       const newBoard = board.clone();
@@ -799,7 +865,7 @@ export const ShogiBoard: React.FC = () => {
       newBoard.clear_square_by_coords(row, col);
       setBoard(newBoard);
     }
-  }, [board, isEditMode, selectedEditPiece, selectedEditPlayer]);
+  }, [board, isEditMode, selectedEditPiece, selectedEditPlayer, cyclePieceState]);
 
   // ドラッグ&ドロップ用のハンドラー
   const handlePieceDragStart = useCallback((piece: any, player: any, event: React.DragEvent) => {
@@ -849,6 +915,35 @@ export const ShogiBoard: React.FC = () => {
     
     event.preventDefault();
     const newBoard = board.clone();
+    
+    // 移動先に駒があるかチェック
+    const existingPieceInfo = newBoard.get_piece_by_coords(row, col);
+    const existingPiece = existingPieceInfo.piece;
+    
+    // 移動先に駒がある場合、その駒を持ち駒に追加
+    if (existingPiece !== (window as any).wasmModule?.Piece?.Empty) {
+      // 駒を成り駒から元の駒に戻す
+      let pieceToAdd = existingPiece;
+      const wasm = (window as any).wasmModule;
+      
+      // 成り駒の場合は元の駒に戻す
+      if (existingPiece === wasm.Piece.PromotedPawn) {
+        pieceToAdd = wasm.Piece.Pawn;
+      } else if (existingPiece === wasm.Piece.PromotedLance) {
+        pieceToAdd = wasm.Piece.Lance;
+      } else if (existingPiece === wasm.Piece.PromotedKnight) {
+        pieceToAdd = wasm.Piece.Knight;
+      } else if (existingPiece === wasm.Piece.PromotedSilver) {
+        pieceToAdd = wasm.Piece.Silver;
+      } else if (existingPiece === wasm.Piece.PromotedBishop) {
+        pieceToAdd = wasm.Piece.Bishop;
+      } else if (existingPiece === wasm.Piece.PromotedRook) {
+        pieceToAdd = wasm.Piece.Rook;
+      }
+      
+      // 取った駒を相手の持ち駒に追加
+      newBoard.add_captured_piece(draggedPlayer, pieceToAdd);
+    }
     
     // 新しい駒を配置
     newBoard.set_piece_by_coords(row, col, draggedPiece, draggedPlayer);
@@ -959,7 +1054,7 @@ export const ShogiBoard: React.FC = () => {
           <div className="board-center">
             {board && (
               <div className="board">
-                {renderBoard(board, selectedPosition, validMoves, handleSquareClick, isDroppingMode, isEditMode, handleSquareDrop, handleSquareDragOver, handlePieceDragStart, handleDragEnd, handleDragLeave)}
+                {renderBoard(board, selectedPosition, validMoves, handleSquareClick, isDroppingMode, isEditMode, getPieceState, isBoardFlipped, handleSquareDrop, handleSquareDragOver, handlePieceDragStart, handleDragEnd, handleDragLeave)}
               </div>
             )}
             

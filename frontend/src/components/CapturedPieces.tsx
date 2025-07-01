@@ -77,6 +77,12 @@ export const CapturedPieces: React.FC<CapturedPiecesProps> = ({
         });
       }
     }
+    
+    // 先手（黒）の場合は配列を反転して右から左に表示
+    if (player === wasm.Player.Black) {
+      return pieces.reverse();
+    }
+    
     return pieces;
   }, [board, wasm, player]);
 
