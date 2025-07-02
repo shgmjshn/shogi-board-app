@@ -170,6 +170,9 @@ const renderBoard = (
   const rowOrder = isBoardFlipped ? [0, 1, 2, 3, 4, 5, 6, 7, 8] : [8, 7, 6, 5, 4, 3, 2, 1, 0];
   const colOrder = isBoardFlipped ? [8, 7, 6, 5, 4, 3, 2, 1, 0] : [0, 1, 2, 3, 4, 5, 6, 7, 8];
   
+  // 漢数字の配列（上が一、下が九）
+  const kanjiNumbers = ['九', '八', '七', '六', '五', '四', '三', '二', '一'];
+  
   for (const row of rowOrder) {
     for (const col of colOrder) {
       try {
@@ -272,7 +275,53 @@ const renderBoard = (
       }
     }
   }
-  return squares;
+  
+  // 座標表示を含む盤面を構築
+  const boardWithCoordinates = [];
+  
+  // 上部の算用数字（1-9）
+  const topCoordinates = [];
+  for (const col of colOrder) {
+    topCoordinates.push(
+      <div key={`top-${col}`} className="coordinate-top">
+        {9 - col}
+      </div>
+    );
+  }
+  boardWithCoordinates.push(
+    <div key="top-row" className="coordinate-row">
+      {topCoordinates}
+    </div>
+  );
+  
+  // 盤面の行（マス目 + 右側に漢数字）
+  for (let i = 0; i < rowOrder.length; i++) {
+    const row = rowOrder[i];
+    const rowSquares = [];
+    
+    // その行のマス目
+    for (const col of colOrder) {
+      const squareIndex = i * 9 + colOrder.indexOf(col);
+      if (squares[squareIndex]) {
+        rowSquares.push(squares[squareIndex]);
+      }
+    }
+    
+    // 右側の漢数字
+    rowSquares.push(
+      <div key={`right-${row}`} className="coordinate-right">
+        {kanjiNumbers[row]}
+      </div>
+    );
+    
+    boardWithCoordinates.push(
+      <div key={`row-${row}`} className="board-row">
+        {rowSquares}
+      </div>
+    );
+  }
+  
+  return boardWithCoordinates;
 };
 
 export const ShogiBoard: React.FC = () => {
@@ -292,7 +341,19 @@ export const ShogiBoard: React.FC = () => {
   const [draggedPlayer, setDraggedPlayer] = useState<any>(null);
   const [isBoardFlipped, setIsBoardFlipped] = useState(false);
   const [dragStartPosition, setDragStartPosition] = useState<{row: number, col: number} | null>(null);
-  const [pieceStates, setPieceStates] = useState<Record<string, number>>({}); // 駒の状態管理 (0: 通常, 1: 成り, 2: 反転, 3: 成り+反転)
+  const [pieceStates, setPieceStates] = useState<Record<string, number>>({});
+  const [moveHistory, setMoveHistory] = useState<Array<{
+    moveNumber: number;
+    notation: string;
+    boardState: any;
+    currentPlayer: any;
+    fromRow?: number;
+    fromCol?: number;
+    toRow?: number;
+    toCol?: number;
+  }>>([]);
+  const [currentMoveIndex, setCurrentMoveIndex] = useState(-1);
+  const [isScrollLocked, setIsScrollLocked] = useState(false); // 駒の状態管理 (0: 通常, 1: 成り, 2: 反転, 3: 成り+反転)
 
   // WebAssemblyモジュールの初期化を一度だけ行う
   useEffect(() => {
@@ -428,6 +489,10 @@ export const ShogiBoard: React.FC = () => {
         }
         console.log('移動が成功しました');
         
+        // 指し手を記録（記録関数内で指し手を実行するため、ここでは記録のみ）
+        const pieceInfo = board.get_piece_by_coords(selectedRow, selectedCol);
+        recordMove(selectedRow, selectedCol, toRow, toCol, pieceInfo.piece, promote || false);
+        
         // 成り処理後の盤面状態を確認
         if (promote) {
           console.log('=== 成り処理後の盤面状態確認 ===');
@@ -560,6 +625,10 @@ export const ShogiBoard: React.FC = () => {
           
           if (newBoard.drop_piece(pieceEnum, row, col)) {
             console.log('持ち駒ドロップ成功');
+            
+            // 持ち駒ドロップを記録（記録関数内で指し手を実行するため、ここでは記録のみ）
+            recordMove(-1, -1, row, col, pieceEnum, false);
+            
             setBoard(newBoard);
             setSelectedCapturedPiece(null);
             setSelectedCapturedPiecePlayer(null);
@@ -721,18 +790,19 @@ export const ShogiBoard: React.FC = () => {
     // 後手玉を初期位置に配置
     newBoard.set_piece_by_coords(8, 4, window.wasmModule.Piece.King, window.wasmModule.Player.White);
     
-    // 先手の駒をすべて後手の持ち駒に
+    // 玉以外の駒の枚数を倍にして、先手と後手の両方に持ち駒を設定
     const pieces = [
-      { piece: window.wasmModule.Piece.Pawn, count: 9 },
-      { piece: window.wasmModule.Piece.Lance, count: 2 },
-      { piece: window.wasmModule.Piece.Knight, count: 2 },
-      { piece: window.wasmModule.Piece.Silver, count: 2 },
-      { piece: window.wasmModule.Piece.Gold, count: 2 },
-      { piece: window.wasmModule.Piece.Bishop, count: 1 },
-      { piece: window.wasmModule.Piece.Rook, count: 1 },
-      { piece: window.wasmModule.Piece.King, count: 1 }
+      { piece: window.wasmModule.Piece.Pawn, count: 18 }, // 9 * 2
+      { piece: window.wasmModule.Piece.Lance, count: 4 }, // 2 * 2
+      { piece: window.wasmModule.Piece.Knight, count: 4 }, // 2 * 2
+      { piece: window.wasmModule.Piece.Silver, count: 4 }, // 2 * 2
+      { piece: window.wasmModule.Piece.Gold, count: 4 }, // 2 * 2
+      { piece: window.wasmModule.Piece.Bishop, count: 2 }, // 1 * 2
+      { piece: window.wasmModule.Piece.Rook, count: 2 }, // 1 * 2
+      { piece: window.wasmModule.Piece.King, count: 1 } // 玉は1枚のみ
     ];
     
+    // 後手のみに持ち駒を設定（先手は持ち駒なし）
     for (const { piece, count } of pieces) {
       newBoard.set_captured_piece_count(window.wasmModule.Player.White, piece, count);
     }
@@ -785,42 +855,7 @@ export const ShogiBoard: React.FC = () => {
       }
     }
     
-    // 持ち駒を交換
-    const blackCaptured = [];
-    const whiteCaptured = [];
-    
-    const pieceTypes = [
-      window.wasmModule.Piece.Pawn,
-      window.wasmModule.Piece.Lance,
-      window.wasmModule.Piece.Knight,
-      window.wasmModule.Piece.Silver,
-      window.wasmModule.Piece.Gold,
-      window.wasmModule.Piece.Bishop,
-      window.wasmModule.Piece.Rook,
-      window.wasmModule.Piece.King
-    ];
-    
-    // 現在の持ち駒を保存
-    for (const piece of pieceTypes) {
-      const blackCount = newBoard.get_captured_piece_count(window.wasmModule.Player.Black, piece);
-      const whiteCount = newBoard.get_captured_piece_count(window.wasmModule.Player.White, piece);
-      blackCaptured.push({ piece, count: blackCount });
-      whiteCaptured.push({ piece, count: whiteCount });
-    }
-    
-    // 持ち駒をクリア
-    newBoard.clear_captured_pieces(window.wasmModule.Player.Black);
-    newBoard.clear_captured_pieces(window.wasmModule.Player.White);
-    
-    // 持ち駒を交換
-    for (const { piece, count } of blackCaptured) {
-      newBoard.set_captured_piece_count(window.wasmModule.Player.White, piece, count);
-    }
-    for (const { piece, count } of whiteCaptured) {
-      newBoard.set_captured_piece_count(window.wasmModule.Player.Black, piece, count);
-    }
-    
-    // 表示位置を入れ替える
+    // 持ち駒の内容は変更せず、表示位置のみを入れ替える
     setIsBoardFlipped(!isBoardFlipped);
     
     setBoard(newBoard);
@@ -1001,6 +1036,222 @@ export const ShogiBoard: React.FC = () => {
     }
   }, [isEditMode]);
 
+  // 同じ駒が複数ある場合の区別表記を生成する関数
+  const generateDisambiguation = useCallback((fromRow: number, fromCol: number, toRow: number, toCol: number, piece: any, player: any) => {
+    if (!board) return '';
+    
+    // 同じ種類の駒を探す
+    const samePieces: Array<{row: number, col: number}> = [];
+    
+    for (let row = 0; row < 9; row++) {
+      for (let col = 0; col < 9; col++) {
+        try {
+          const pieceInfo = board.get_piece_by_coords(row, col);
+          if (pieceInfo.piece === piece && pieceInfo.player === player) {
+            samePieces.push({row, col});
+          }
+        } catch (err) {
+          // エラーは無視
+        }
+      }
+    }
+    
+    // 同じ駒が1つしかない場合は区別不要
+    if (samePieces.length <= 1) return '';
+    
+    // 移動先に到達可能な駒をフィルタリング
+    const reachablePieces = samePieces.filter(({row, col}) => {
+      try {
+        const moves = board.get_valid_moves_by_coords(row, col);
+        return moves.some((move: any) => {
+          try {
+            return move.get_row() === toRow && move.get_column() === toCol;
+          } catch (err) {
+            return false;
+          }
+        });
+      } catch (err) {
+        return false;
+      }
+    });
+    
+    // 到達可能な駒が1つしかない場合は区別不要
+    if (reachablePieces.length <= 1) return '';
+    
+    // 移動元の駒の位置を基準に区別表記を決定
+    const fromPiece = reachablePieces.find(({row, col}) => row === fromRow && col === fromCol);
+    if (!fromPiece) return '';
+    
+    // 他の到達可能な駒との位置関係を比較
+    const otherPieces = reachablePieces.filter(({row, col}) => !(row === fromRow && col === fromCol));
+    
+    for (const other of otherPieces) {
+      // 同じ列にある場合（左右の区別）
+      if (fromPiece.col === other.col) {
+        if (fromPiece.row < other.row) {
+          return '上'; // 上側の駒
+        } else {
+          return '引'; // 下側の駒
+        }
+      }
+      
+      // 同じ行にある場合（左右の区別）
+      if (fromPiece.row === other.row) {
+        if (fromPiece.col < other.col) {
+          return '左'; // 左側の駒
+        } else {
+          return '右'; // 右側の駒
+        }
+      }
+    }
+    
+    return '';
+  }, [board]);
+
+  // 指し手の符号を生成する関数
+  const generateMoveNotation = useCallback((fromRow: number, fromCol: number, toRow: number, toCol: number, piece: any, isPromoted: boolean = false) => {
+    const pieceNames: Record<number, string> = {
+      [window.wasmModule.Piece.Pawn]: '歩',
+      [window.wasmModule.Piece.Lance]: '香',
+      [window.wasmModule.Piece.Knight]: '桂',
+      [window.wasmModule.Piece.Silver]: '銀',
+      [window.wasmModule.Piece.Gold]: '金',
+      [window.wasmModule.Piece.Bishop]: '角',
+      [window.wasmModule.Piece.Rook]: '飛',
+      [window.wasmModule.Piece.King]: '玉',
+      [window.wasmModule.Piece.PromotedPawn]: 'と',
+      [window.wasmModule.Piece.PromotedLance]: '成香',
+      [window.wasmModule.Piece.PromotedKnight]: '成桂',
+      [window.wasmModule.Piece.PromotedSilver]: '成銀',
+      [window.wasmModule.Piece.PromotedBishop]: '馬',
+      [window.wasmModule.Piece.PromotedRook]: '龍',
+    };
+
+    const pieceName = pieceNames[piece] || '駒';
+    
+    // 手番の記号を取得（先手が▲、後手が△）
+    const currentPlayer = board?.get_current_player();
+    const playerSymbol = currentPlayer === window.wasmModule.Player.Black ? '▲' : '△';
+    
+    // 漢数字の配列（上が一、下が九）
+    const kanjiNumbers = ['九', '八', '七', '六', '五', '四', '三', '二', '一'];
+    
+    // 直前の指し手と同じ座標かチェック
+    const lastMove = moveHistory.length > 0 ? moveHistory[moveHistory.length - 1] : null;
+    let isSamePosition = false;
+    
+    if (lastMove && lastMove.toRow !== undefined && lastMove.toCol !== undefined) {
+      isSamePosition = lastMove.toRow === toRow && lastMove.toCol === toCol;
+    }
+    
+    // 持ち駒ドロップの場合
+    if (fromRow === -1 && fromCol === -1) {
+      const column = 9 - toCol; // 算用数字側（右から1,2,3...）
+      const row = kanjiNumbers[toRow]; // 漢数字側（上が一、下が九）
+      const position = isSamePosition ? '同' : `${column}${row}`;
+      return `${playerSymbol}${position}${pieceName}打`;
+    }
+    
+    // 通常の移動の場合
+    const column = 9 - toCol; // 算用数字側（右から1,2,3...）
+    const row = kanjiNumbers[toRow]; // 漢数字側（上が一、下が九）
+    const position = isSamePosition ? '同' : `${column}${row}`;
+    
+    // 同じ駒の区別表記を取得
+    const disambiguation = generateDisambiguation(fromRow, fromCol, toRow, toCol, piece, currentPlayer);
+    
+    const promotion = isPromoted ? '成' : '';
+    
+    return `${playerSymbol}${position}${pieceName}${disambiguation}${promotion}`;
+  }, [board, moveHistory, generateDisambiguation]);
+
+  // 指し手を記録する関数
+  const recordMove = useCallback((fromRow: number, fromCol: number, toRow: number, toCol: number, piece: any, isPromoted: boolean = false) => {
+    if (!board) return;
+
+    const notation = generateMoveNotation(fromRow, fromCol, toRow, toCol, piece, isPromoted);
+    const moveNumber = Math.floor(moveHistory.length / 2) + 1;
+    
+    // 指し手を実行した後の盤面状態を保存するため、新しい盤面を作成
+    const newBoard = board.clone();
+    
+    // 持ち駒ドロップの場合
+    if (fromRow === -1 && fromCol === -1) {
+      newBoard.drop_piece(piece, toRow, toCol);
+    } else {
+      // 通常の移動の場合
+      newBoard.make_move_by_coords_with_promotion(fromRow, fromCol, toRow, toCol, isPromoted);
+    }
+    
+    const newMove = {
+      moveNumber,
+      notation,
+      boardState: newBoard,
+      currentPlayer: newBoard.get_current_player(),
+      fromRow,
+      fromCol,
+      toRow,
+      toCol
+    };
+
+    // 現在の指し手インデックス以降の履歴を削除（新しい指し手を追加する場合）
+    const updatedHistory = moveHistory.slice(0, currentMoveIndex + 1);
+    updatedHistory.push(newMove);
+    
+    setMoveHistory(updatedHistory);
+    setCurrentMoveIndex(updatedHistory.length - 1);
+  }, [board, moveHistory, currentMoveIndex, generateMoveNotation]);
+
+  // 指し手の履歴から盤面を復元する関数
+  const restoreBoardFromHistory = useCallback((index: number) => {
+    if (index < 0 || index >= moveHistory.length) return;
+    
+    const historyEntry = moveHistory[index];
+    const restoredBoard = historyEntry.boardState.clone();
+    
+    setBoard(restoredBoard);
+    setCurrentMoveIndex(index);
+    setSelectedPosition(null);
+    setValidMoves([]);
+    setSelectedCapturedPiece(null);
+    setSelectedCapturedPiecePlayer(null);
+    setIsDroppingMode(false);
+  }, [moveHistory]);
+
+  // 初期状態に戻す関数
+  const restoreToInitial = useCallback(() => {
+    if (!board) return;
+    
+    const newBoard = board.clone();
+    newBoard.reset_to_initial_position();
+    setBoard(newBoard);
+    setCurrentMoveIndex(-1);
+    setSelectedPosition(null);
+    setValidMoves([]);
+    setSelectedCapturedPiece(null);
+    setSelectedCapturedPiecePlayer(null);
+    setIsDroppingMode(false);
+  }, [board]);
+
+  // スクロール制御を切り替える関数
+  const toggleScrollLock = useCallback(() => {
+    setIsScrollLocked(prev => !prev);
+  }, []);
+
+  // スクロール制御の効果
+  useEffect(() => {
+    if (isScrollLocked) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'auto';
+    }
+
+    // クリーンアップ関数
+    return () => {
+      document.body.style.overflow = 'auto';
+    };
+  }, [isScrollLocked]);
+
   return (
     <ErrorBoundary>
       <div className={`shogi-board ${isEditMode ? 'edit-mode' : ''}`}>
@@ -1060,6 +1311,41 @@ export const ShogiBoard: React.FC = () => {
             
             <div className="current-player">
               現在の手番: {board?.get_current_player() === (window as any).wasmModule?.Player?.Black ? '先手（黒）' : '後手（白）'}
+            </div>
+            
+            {/* 指し手ログ */}
+            <div 
+              className="move-log"
+              onClick={toggleScrollLock}
+              onWheel={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const delta = e.deltaY > 0 ? 1 : -1;
+                const newIndex = Math.max(-1, Math.min(moveHistory.length - 1, currentMoveIndex + delta));
+                if (newIndex !== currentMoveIndex) {
+                  if (newIndex === -1) {
+                    restoreToInitial();
+                  } else {
+                    restoreBoardFromHistory(newIndex);
+                  }
+                }
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.overflow = 'hidden';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.overflow = 'visible';
+              }}
+            >
+              <div className="move-log-display">
+                {currentMoveIndex === -1 ? '初期状態' : moveHistory[currentMoveIndex]?.notation || '初期状態'}
+              </div>
+              <div className="move-log-hint">
+                ホバーしてホイールで指し手を切り替え
+              </div>
+              <div className="move-log-scroll-status">
+                {isScrollLocked ? 'スクロール停止中' : 'スクロール可能'}
+              </div>
             </div>
           </div>
           
