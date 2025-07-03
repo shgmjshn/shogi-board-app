@@ -64,7 +64,7 @@ const Square: React.FC<SquareProps> = ({ row, col, piece, player, isSelected, is
   
 
   
-  const getPieceText = (piece: any, player: any) => {
+  const getPieceText = () => {
     if (!wasm) return '';
     
     const pieceMap: Record<any, string> = {
@@ -134,7 +134,7 @@ const Square: React.FC<SquareProps> = ({ row, col, piece, player, isSelected, is
     }
   }, [onDragLeave]);
 
-  const pieceText = getPieceText(piece, player);
+  const pieceText = getPieceText();
 
   return (
     <div 
