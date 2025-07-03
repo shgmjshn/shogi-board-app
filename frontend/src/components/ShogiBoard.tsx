@@ -23,6 +23,7 @@ interface SquareProps {
   isDroppingMode: boolean;
   isEditMode?: boolean;
   pieceState?: number; // 駒の状態 (0: 通常, 1: 成り, 2: 反転, 3: 成り+反転)
+  isBoardFlipped?: boolean; // 盤面反転フラグ
   onDrop?: (row: number, col: number, event: React.DragEvent) => void;
   onDragOver?: (event: React.DragEvent) => void;
   onDragStart?: (piece: any, player: any, event: React.DragEvent) => void;
@@ -30,7 +31,7 @@ interface SquareProps {
   onDragLeave?: (event: React.DragEvent) => void;
 }
 
-const Square: React.FC<SquareProps> = ({ row, col, piece, player, isSelected, isValidMove, onClick, isDroppingMode, isEditMode, pieceState = 0, onDrop, onDragOver, onDragStart, onDragEnd, onDragLeave }) => {
+const Square: React.FC<SquareProps> = ({ row, col, piece, player, isSelected, isValidMove, onClick, isDroppingMode, isEditMode, pieceState = 0, isBoardFlipped = false, onDrop, onDragOver, onDragStart, onDragEnd, onDragLeave }) => {
   const wasm = (window as any).wasmModule;
   
   // 駒の状態に応じて表示を変更
@@ -40,6 +41,11 @@ const Square: React.FC<SquareProps> = ({ row, col, piece, player, isSelected, is
   if (wasm) {
     // 状態2または3の場合（反転状態）
     if (pieceState === 2 || pieceState === 3) {
+      displayPlayer = player === wasm.Player.Black ? wasm.Player.White : wasm.Player.Black;
+    }
+    
+    // 盤面反転時の駒の方向調整
+    if (isBoardFlipped) {
       displayPlayer = player === wasm.Player.Black ? wasm.Player.White : wasm.Player.Black;
     }
     
@@ -244,6 +250,7 @@ const renderBoard = (
             isDroppingMode={isDroppingMode}
             isEditMode={isEditMode}
             pieceState={getPieceState ? getPieceState(row, col) : 0}
+            isBoardFlipped={isBoardFlipped}
             onDrop={onDrop}
             onDragOver={onDragOver}
             onDragStart={onDragStart}
@@ -265,6 +272,7 @@ const renderBoard = (
             onClick={handleSquareClick}
             isDroppingMode={isDroppingMode}
             isEditMode={isEditMode}
+            isBoardFlipped={isBoardFlipped}
             onDrop={onDrop}
             onDragOver={onDragOver}
             onDragStart={onDragStart}
@@ -828,38 +836,9 @@ export const ShogiBoard: React.FC = () => {
   }, [board]);
 
   const handleFlipBoard = useCallback(() => {
-    if (!board) return;
-    const newBoard = board.clone();
-    
-    // 盤面を一時的に保存
-    const tempBoard = Array(9).fill(null).map(() => Array(9).fill(null));
-    for (let row = 0; row < 9; row++) {
-      for (let col = 0; col < 9; col++) {
-        const pieceInfo = newBoard.get_piece_by_coords(row, col);
-        tempBoard[row][col] = { piece: pieceInfo.piece, player: pieceInfo.player };
-      }
-    }
-    
-    // 盤面をクリア
-    newBoard.clear_board();
-    
-    // 盤面を反転して配置
-    for (let row = 0; row < 9; row++) {
-      for (let col = 0; col < 9; col++) {
-        const flippedRow = 8 - row;
-        const flippedCol = 8 - col;
-        const pieceInfo = tempBoard[row][col];
-        if (pieceInfo.piece !== window.wasmModule.Piece.Empty) {
-          newBoard.set_piece_by_coords(flippedRow, flippedCol, pieceInfo.piece, pieceInfo.player);
-        }
-      }
-    }
-    
-    // 持ち駒の内容は変更せず、表示位置のみを入れ替える
+    // 盤面反転は表示のみで行い、実際のデータ構造は変更しない
     setIsBoardFlipped(!isBoardFlipped);
-    
-    setBoard(newBoard);
-  }, [board, isBoardFlipped]);
+  }, [isBoardFlipped]);
 
   // 駒の状態を取得する関数
   const getPieceState = useCallback((row: number, col: number): number => {
@@ -1086,27 +1065,47 @@ export const ShogiBoard: React.FC = () => {
     const otherPieces = reachablePieces.filter(({row, col}) => !(row === fromRow && col === fromCol));
     
     for (const other of otherPieces) {
-      // 同じ列にある場合（左右の区別）
+      // 同じ列にある場合（上下の区別）
       if (fromPiece.col === other.col) {
-        if (fromPiece.row < other.row) {
-          return '上'; // 上側の駒
+        if (isBoardFlipped) {
+          // 後手視点では上下が逆になる
+          if (fromPiece.row < other.row) {
+            return '引'; // 上側の駒（後手視点では下）
+          } else {
+            return '上'; // 下側の駒（後手視点では上）
+          }
         } else {
-          return '引'; // 下側の駒
+          // 先手視点（実際の駒の位置を基準）
+          if (fromPiece.row < other.row) {
+            return '上'; // 上側の駒
+          } else {
+            return '引'; // 下側の駒
+          }
         }
       }
       
       // 同じ行にある場合（左右の区別）
       if (fromPiece.row === other.row) {
-        if (fromPiece.col < other.col) {
-          return '左'; // 左側の駒
+        if (isBoardFlipped) {
+          // 後手視点では左右が逆になる
+          if (fromPiece.col < other.col) {
+            return '右'; // 左側の駒（後手視点では右）
+          } else {
+            return '左'; // 右側の駒（後手視点では左）
+          }
         } else {
-          return '右'; // 右側の駒
+          // 先手視点（実際の駒の位置を基準）
+          if (fromPiece.col < other.col) {
+            return '左'; // 左側の駒
+          } else {
+            return '右'; // 右側の駒
+          }
         }
       }
     }
     
     return '';
-  }, [board]);
+  }, [board, isBoardFlipped]);
 
   // 指し手の符号を生成する関数
   const generateMoveNotation = useCallback((fromRow: number, fromCol: number, toRow: number, toCol: number, piece: any, isPromoted: boolean = false) => {
@@ -1163,7 +1162,7 @@ export const ShogiBoard: React.FC = () => {
     const promotion = isPromoted ? '成' : '';
     
     return `${playerSymbol}${position}${pieceName}${disambiguation}${promotion}`;
-  }, [board, moveHistory, generateDisambiguation]);
+  }, [board, moveHistory, generateDisambiguation, isBoardFlipped]);
 
   // 指し手を記録する関数
   const recordMove = useCallback((fromRow: number, fromCol: number, toRow: number, toCol: number, piece: any, isPromoted: boolean = false) => {
@@ -1310,7 +1309,10 @@ export const ShogiBoard: React.FC = () => {
             )}
             
             <div className="current-player">
-              現在の手番: {board?.get_current_player() === (window as any).wasmModule?.Player?.Black ? '先手（黒）' : '後手（白）'}
+              現在の手番: {isBoardFlipped 
+                ? (board?.get_current_player() === (window as any).wasmModule?.Player?.Black ? '先手（黒）' : '後手（白）')
+                : (board?.get_current_player() === (window as any).wasmModule?.Player?.Black ? '先手（黒）' : '後手（白）')
+              }
             </div>
             
             {/* 指し手ログ */}
