@@ -1,6 +1,5 @@
 {
-  "buildCommand": "npm run build:vercel",
+  "buildCommand": "npm run build",
   "outputDirectory": "frontend/dist",
-  "installCommand": "npm install --workspaces",
-  "framework": "vite"
+  "installCommand": "npm install"
 } 
