@@ -24,6 +24,7 @@ interface SquareProps {
   isEditMode?: boolean;
   pieceState?: number; // 駒の状態 (0: 通常, 1: 成り, 2: 反転, 3: 成り+反転)
   isBoardFlipped?: boolean; // 盤面反転フラグ
+  isMoving?: boolean; // 移動アニメーション中かどうか
   onDrop?: (row: number, col: number, event: React.DragEvent) => void;
   onDragOver?: (event: React.DragEvent) => void;
   onDragStart?: (piece: any, player: any, event: React.DragEvent) => void;
@@ -31,7 +32,7 @@ interface SquareProps {
   onDragLeave?: (event: React.DragEvent) => void;
 }
 
-const Square: React.FC<SquareProps> = ({ row, col, piece, player, isSelected, isValidMove, onClick, isDroppingMode, isEditMode, pieceState = 0, isBoardFlipped = false, onDrop, onDragOver, onDragStart, onDragEnd, onDragLeave }) => {
+const Square: React.FC<SquareProps> = ({ row, col, piece, player, isSelected, isValidMove, onClick, isDroppingMode, isEditMode, pieceState = 0, isBoardFlipped = false, isMoving, onDrop, onDragOver, onDragStart, onDragEnd, onDragLeave }) => {
   const wasm = (window as any).wasmModule;
   
   // 駒の状態に応じて表示を変更
@@ -89,7 +90,7 @@ const Square: React.FC<SquareProps> = ({ row, col, piece, player, isSelected, is
 
   const className = `square ${isSelected ? 'selected' : ''} ${isValidMove ? 'valid-move' : ''} ${
     displayPlayer === (window as any).wasmModule?.Player?.White ? 'white' : ''
-  } ${isDroppingMode ? 'dropping-mode' : ''}`;
+  } ${isDroppingMode ? 'dropping-mode' : ''} ${isMoving ? 'moving' : ''}`;
   
   console.log(`className計算: 位置(${row}, ${col}), displayPlayer: ${displayPlayer}, className: ${className}`);
 
@@ -251,6 +252,7 @@ const renderBoard = (
             isEditMode={isEditMode}
             pieceState={getPieceState ? getPieceState(row, col) : 0}
             isBoardFlipped={isBoardFlipped}
+            isMoving={false}
             onDrop={onDrop}
             onDragOver={onDragOver}
             onDragStart={onDragStart}
@@ -273,6 +275,7 @@ const renderBoard = (
             isDroppingMode={isDroppingMode}
             isEditMode={isEditMode}
             isBoardFlipped={isBoardFlipped}
+            isMoving={false}
             onDrop={onDrop}
             onDragOver={onDragOver}
             onDragStart={onDragStart}
@@ -361,7 +364,9 @@ export const ShogiBoard: React.FC = () => {
     toCol?: number;
   }>>([]);
   const [currentMoveIndex, setCurrentMoveIndex] = useState(-1);
-  const [isScrollLocked, setIsScrollLocked] = useState(false); // 駒の状態管理 (0: 通常, 1: 成り, 2: 反転, 3: 成り+反転)
+  const [isScrollLocked, setIsScrollLocked] = useState(false);
+
+
 
   // WebAssemblyモジュールの初期化を一度だけ行う
   useEffect(() => {
@@ -497,6 +502,8 @@ export const ShogiBoard: React.FC = () => {
         }
         console.log('移動が成功しました');
         
+
+        
         // 指し手を記録（記録関数内で指し手を実行するため、ここでは記録のみ）
         const pieceInfo = board.get_piece_by_coords(selectedRow, selectedCol);
         recordMove(selectedRow, selectedCol, toRow, toCol, pieceInfo.piece, promote || false);
@@ -536,6 +543,8 @@ export const ShogiBoard: React.FC = () => {
     }
   }, [board, selectedPosition]);
 
+
+
   const handleSquareClick = useCallback((row: number, col: number) => {
     if (!board || !window.wasmModule) return;
     
@@ -545,14 +554,14 @@ export const ShogiBoard: React.FC = () => {
       return;
     }
     
-      const createPosition = (r: number, c: number): any | null => {
-    try {
-      return new window.wasmModule.Position(r, c);
-    } catch (err) {
-      console.error(`Position作成エラー: (${r}, ${c})`, err);
-      return null;
-    }
-  };
+    const createPosition = (r: number, c: number): any | null => {
+      try {
+        return new window.wasmModule.Position(r, c);
+      } catch (err) {
+        console.error(`Position作成エラー: (${r}, ${c})`, err);
+        return null;
+      }
+    };
 
     try {
       // 持ち駒ドロップモードの場合
@@ -633,6 +642,8 @@ export const ShogiBoard: React.FC = () => {
           
           if (newBoard.drop_piece(pieceEnum, row, col)) {
             console.log('持ち駒ドロップ成功');
+            
+
             
             // 持ち駒ドロップを記録（記録関数内で指し手を実行するため、ここでは記録のみ）
             recordMove(-1, -1, row, col, pieceEnum, false);

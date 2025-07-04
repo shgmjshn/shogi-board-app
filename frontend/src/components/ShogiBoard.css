@@ -104,8 +104,6 @@
   flex-shrink: 0;
 }
 
-
-
 .coordinate-left {
   width: 24px;
   display: flex;
@@ -446,6 +444,12 @@
   transform: rotate(180deg);
 }
 
+
+
 .square:hover {
   background-color: #DEB887;
-} 
+}
+
+
+
+ 
