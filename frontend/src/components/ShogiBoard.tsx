@@ -362,6 +362,8 @@ export const ShogiBoard: React.FC = () => {
     fromCol?: number;
     toRow?: number;
     toCol?: number;
+    piece?: any; // 駒の種類
+    isPromoted?: boolean; // 成り情報
   }>>([]);
   const [currentMoveIndex, setCurrentMoveIndex] = useState(-1);
   const [isScrollLocked, setIsScrollLocked] = useState(false);
@@ -1143,7 +1145,7 @@ export const ShogiBoard: React.FC = () => {
     const currentPlayer = board?.get_current_player();
     const playerSymbol = currentPlayer === window.wasmModule.Player.Black ? '▲' : '△';
     
-    // 漢数字の配列（上が一、下が九）
+    // 漢数字の配列（上が一、下が九）- 盤面表示と同じ逆順
     const kanjiNumbers = ['九', '八', '七', '六', '五', '四', '三', '二', '一'];
     
     // 直前の指し手と同じ座標かチェック
@@ -1152,19 +1154,20 @@ export const ShogiBoard: React.FC = () => {
     
     if (lastMove && lastMove.toRow !== undefined && lastMove.toCol !== undefined) {
       isSamePosition = lastMove.toRow === toRow && lastMove.toCol === toCol;
+      console.log(`「同」判定: 直前の移動先(${lastMove.toRow}, ${lastMove.toCol}), 現在の移動先(${toRow}, ${toCol}), 結果: ${isSamePosition}`);
     }
     
     // 持ち駒ドロップの場合
     if (fromRow === -1 && fromCol === -1) {
-      const column = 9 - toCol; // 算用数字側（右から1,2,3...）
-      const row = kanjiNumbers[toRow]; // 漢数字側（上が一、下が九）
+      const column = 9 - toCol; // 列（盤面表示と同じ方法）
+      const row = kanjiNumbers[toRow]; // 段（盤面表示と同じ方法）
       const position = isSamePosition ? '同' : `${column}${row}`;
       return `${playerSymbol}${position}${pieceName}打`;
     }
     
     // 通常の移動の場合
-    const column = 9 - toCol; // 算用数字側（右から1,2,3...）
-    const row = kanjiNumbers[toRow]; // 漢数字側（上が一、下が九）
+    const column = 9 - toCol; // 列（盤面表示と同じ方法）
+    const row = kanjiNumbers[toRow]; // 段（盤面表示と同じ方法）
     const position = isSamePosition ? '同' : `${column}${row}`;
     
     // 同じ駒の区別表記を取得
@@ -1201,7 +1204,9 @@ export const ShogiBoard: React.FC = () => {
       fromRow,
       fromCol,
       toRow,
-      toCol
+      toCol,
+      piece, // 駒の種類を追加
+      isPromoted // 成り情報を追加
     };
 
     // 現在の指し手インデックス以降の履歴を削除（新しい指し手を追加する場合）
@@ -1246,6 +1251,439 @@ export const ShogiBoard: React.FC = () => {
   // スクロール制御を切り替える関数
   const toggleScrollLock = useCallback(() => {
     setIsScrollLocked(prev => !prev);
+  }, []);
+
+  // 座標を棋譜形式に変換する関数
+  const convertToKifNotation = useCallback((row: number, col: number, fromRow?: number, fromCol?: number, piece?: any, isPromoted?: boolean, isDrop?: boolean, currentIndex?: number) => {
+    const wasm = (window as any).wasmModule;
+    if (!wasm) return '';
+
+    // デバッグ用ログ
+    console.log(`座標変換: row=${row}, col=${col}, fromRow=${fromRow}, fromCol=${fromCol}`);
+
+    // 漢数字の配列（上が一、下が九）- 盤面表示と同じ逆順
+    const kanjiNumbers = ['九', '八', '七', '六', '五', '四', '三', '二', '一'];
+    
+    // 駒名のマッピング
+    const pieceNames: Record<number, string> = {
+      [wasm.Piece.Pawn]: '歩',
+      [wasm.Piece.Lance]: '香',
+      [wasm.Piece.Knight]: '桂',
+      [wasm.Piece.Silver]: '銀',
+      [wasm.Piece.Gold]: '金',
+      [wasm.Piece.Bishop]: '角',
+      [wasm.Piece.Rook]: '飛',
+      [wasm.Piece.King]: '玉',
+      [wasm.Piece.PromotedPawn]: 'と',
+      [wasm.Piece.PromotedLance]: '成香',
+      [wasm.Piece.PromotedKnight]: '成桂',
+      [wasm.Piece.PromotedSilver]: '成銀',
+      [wasm.Piece.PromotedBishop]: '馬',
+      [wasm.Piece.PromotedRook]: '龍',
+    };
+
+    const pieceName = piece ? pieceNames[piece] || '駒' : '';
+    
+    // 座標変換：盤面表示と同じ方法を使用
+    // 列: 9 - col (内部座標0-8 → 表示座標9-1)
+    // 段: kanjiNumbers[row] (内部座標0-8 → 表示座標九-一)
+    const targetCol = 9 - col; // 列（9-1）
+    const targetRow = kanjiNumbers[row]; // 段（九-一）
+    
+    console.log(`変換後: targetCol=${targetCol}, targetRow=${targetRow}`);
+    console.log(`内部座標: 移動先(${row}, ${col}), 移動元(${fromRow}, ${fromCol})`);
+    
+    // 持ち駒ドロップの場合
+    if (isDrop) {
+      return `${targetCol}${targetRow}${pieceName}打`;
+    }
+    
+    // 通常の移動の場合
+    if (fromRow !== undefined && fromCol !== undefined) {
+      const fromColStr = 9 - fromCol; // 移動元の列（算用数字）
+      const fromRowStr = 9 - fromRow; // 移動元の段（算用数字）
+      const promotion = isPromoted ? '成' : '';
+      
+      // 直前の指し手と同じ座標かチェック
+      const lastMove = moveHistory.length > 1 && currentIndex !== undefined && currentIndex > 0 ? moveHistory[currentIndex - 1] : null;
+      let isSamePosition = false;
+      
+      if (lastMove && lastMove.toRow !== undefined && lastMove.toCol !== undefined) {
+        isSamePosition = lastMove.toRow === row && lastMove.toCol === col;
+        console.log(`KIF「同」判定: 直前の移動先(${lastMove.toRow}, ${lastMove.toCol}), 現在の移動先(${row}, ${col}), 結果: ${isSamePosition}`);
+      }
+      
+      const position = isSamePosition ? '同' : `${targetCol}${targetRow}`;
+      const result = `${position}${pieceName}(${fromColStr}${fromRowStr})${promotion}`;
+      console.log(`棋譜表記: ${result}`);
+      return result;
+    }
+    
+    return `${targetCol}${targetRow}${pieceName}`;
+  }, [moveHistory]);
+
+  // KIFファイル形式の棋譜を生成する関数
+  const generateKifContent = useCallback(() => {
+    if (!moveHistory || moveHistory.length === 0) {
+      return '棋譜がありません。';
+    }
+
+    // KIF形式のヘッダー部分
+    let kifContent = '#KIF version=2.0 encoding=UTF-8\r\n';
+    kifContent += `開始日時：${new Date().toLocaleString()}\r\n`;
+    kifContent += '場所：\r\n';
+    kifContent += '先手：先手\r\n';
+    kifContent += '後手：後手\r\n';
+
+    // 現在の局面までの手数をコピー（currentMoveIndex + 1まで）
+    const movesToCopy = currentMoveIndex === -1 ? 0 : currentMoveIndex + 1;
+    
+    for (let index = 0; index < movesToCopy; index++) {
+      const move = moveHistory[index];
+      const moveNumber = Math.floor(index + 1);
+      console.log(`手数計算: index=${index}, moveNumber=${moveNumber}`);
+      console.log(`moveNumber.toString().padStart(3): "${moveNumber.toString().padStart(3)}"`);
+      const isFirstPlayer = index % 2 === 0;
+      const playerPrefix = isFirstPlayer ? '' : '   ';
+      console.log(`手番判定: index=${index}, isFirstPlayer=${isFirstPlayer}, playerPrefix="${playerPrefix}"`);
+      
+      // 棋譜表記を生成
+      let moveNotation = '';
+      if (move.fromRow !== undefined && move.fromCol !== undefined) {
+        // 通常の移動
+        moveNotation = convertToKifNotation(
+          move.toRow || 0, 
+          move.toCol || 0, 
+          move.fromRow, 
+          move.fromCol,
+          move.piece, // 記録された駒の種類を使用
+          move.isPromoted || false, // 記録された成り情報を使用
+          false,
+          index
+        );
+      } else {
+        // 持ち駒ドロップ
+        moveNotation = convertToKifNotation(
+          move.toRow || 0,
+          move.toCol || 0,
+          undefined,
+          undefined,
+          move.piece,
+          false,
+          true, // isDrop = true
+          index
+        );
+      }
+      
+      const timeInfo = '0:0/0:0:0';
+      
+      // 手数のフォーマットを修正（奇数手目にもスペースを追加）
+      const spacing = isFirstPlayer ? '   ' : ''; // 奇数手目に3つのスペースを追加
+      kifContent += `${moveNumber.toString().padStart(3)}${spacing}${playerPrefix}${moveNotation}   (${timeInfo})\r\n`;
+    }
+
+    kifContent += 'まで' + movesToCopy + '手で終了\r\n';
+    return kifContent;
+  }, [moveHistory, currentMoveIndex, convertToKifNotation]);
+
+  // KIFファイルをクリップボードにコピーする関数
+  const handleCopyKif = useCallback(async () => {
+    try {
+      const kifContent = generateKifContent();
+      
+      // デバッグ用：生成されたKIFファイルの内容をコンソールに出力
+      console.log('=== 生成されたKIFファイルの内容 ===');
+      console.log(kifContent);
+      console.log('=== 各行の詳細 ===');
+      kifContent.split('\r\n').forEach((line, index) => {
+        console.log(`行${index + 1}: "${line}" (長さ: ${line.length})`);
+      });
+      
+      // クリップボードにコピー
+      await navigator.clipboard.writeText(kifContent);
+      console.log('KIF copied to clipboard');
+      
+      // ユーザーフィードバック
+      alert('KIFファイル形式の棋譜をクリップボードにコピーしました。\nデバッグ情報はコンソールに出力されています。');
+    } catch (error) {
+      console.error('Failed to copy: ', error);
+      alert('クリップボードへのコピーに失敗しました。');
+    }
+  }, [generateKifContent]);
+
+  // 将棋盤の画像をクリップボードにコピーする関数（盤面と持ち駒のみ）
+  const handleCopyBoardImage = useCallback(async () => {
+    try {
+      // 盤面と持ち駒のみを含む要素を作成
+      const boardLayoutElement = document.querySelector('.board-layout') as HTMLElement;
+      if (!boardLayoutElement) {
+        alert('盤面レイアウトが見つかりません。');
+        return;
+      }
+
+      // 一時的なコンテナを作成して盤面と持ち駒のみをコピー
+      const tempContainer = document.createElement('div');
+      tempContainer.style.position = 'absolute';
+      tempContainer.style.left = '-9999px';
+      tempContainer.style.top = '-9999px';
+      tempContainer.style.backgroundColor = '#f0f0f0';
+      tempContainer.style.padding = '10px';
+      tempContainer.style.display = 'flex';
+      tempContainer.style.alignItems = 'flex-start';
+      tempContainer.style.gap = '10px';
+      tempContainer.style.justifyContent = 'center';
+      
+      // 持ち駒エリアをコピー（後手を左側、先手を右側に配置）
+      const capturedPiecesLeft = boardLayoutElement.querySelector('.captured-pieces-left') as HTMLElement;
+      const capturedPiecesRight = boardLayoutElement.querySelector('.captured-pieces-right') as HTMLElement;
+      
+      // 後手の持ち駒を左側に追加
+      if (capturedPiecesLeft) {
+        const capturedClone = capturedPiecesLeft.cloneNode(true) as HTMLElement;
+        tempContainer.appendChild(capturedClone);
+      }
+      
+      // 盤面をコピー
+      const boardElement = boardLayoutElement.querySelector('.board') as HTMLElement;
+      if (boardElement) {
+        const boardClone = boardElement.cloneNode(true) as HTMLElement;
+        tempContainer.appendChild(boardClone);
+      }
+      
+      // 先手の持ち駒を右側に追加
+      if (capturedPiecesRight) {
+        const capturedClone = capturedPiecesRight.cloneNode(true) as HTMLElement;
+        tempContainer.appendChild(capturedClone);
+      }
+      
+      // 一時的にDOMに追加
+      document.body.appendChild(tempContainer);
+
+      // html2canvasライブラリが利用可能な場合はそれを使用
+      if ((window as any).html2canvas) {
+        try {
+          const canvasElement = await (window as any).html2canvas(tempContainer, {
+            backgroundColor: '#f0f0f0',
+            scale: 2, // 高解像度でキャプチャ
+            useCORS: true,
+            allowTaint: true,
+            width: tempContainer.offsetWidth,
+            height: tempContainer.offsetHeight
+          });
+          
+          // CanvasをBlobに変換
+          canvasElement.toBlob(async (blob: Blob | null) => {
+            // 一時的なコンテナを削除
+            document.body.removeChild(tempContainer);
+            
+            if (blob) {
+              try {
+                // クリップボードに画像をコピー
+                const item = new ClipboardItem({ 'image/png': blob });
+                await navigator.clipboard.write([item]);
+                alert('将棋盤の画像（持ち駒含む）をクリップボードにコピーしました。');
+              } catch (error) {
+                console.error('クリップボードへのコピーに失敗:', error);
+                alert('クリップボードへのコピーに失敗しました。ブラウザが対応していない可能性があります。');
+              }
+            }
+          }, 'image/png');
+        } catch (error) {
+          console.error('html2canvasでのキャプチャに失敗:', error);
+          // 一時的なコンテナを削除
+          document.body.removeChild(tempContainer);
+          // フォールバック処理
+          fallbackImageCopy(boardLayoutElement);
+        }
+      } else {
+        // 一時的なコンテナを削除
+        document.body.removeChild(tempContainer);
+        // html2canvasが利用できない場合のフォールバック処理
+        fallbackImageCopy(boardLayoutElement);
+      }
+    } catch (error) {
+      console.error('画像のコピーに失敗しました:', error);
+      alert('画像のコピーに失敗しました。');
+    }
+  }, []);
+
+  // html2canvasが利用できない場合のフォールバック処理（盤面と持ち駒のみ）
+  const fallbackImageCopy = useCallback(async (boardLayoutElement: HTMLElement) => {
+    try {
+      // 一時的なコンテナを作成して盤面と持ち駒のみをコピー
+      const tempContainer = document.createElement('div');
+      tempContainer.style.position = 'absolute';
+      tempContainer.style.left = '-9999px';
+      tempContainer.style.top = '-9999px';
+      tempContainer.style.backgroundColor = '#f0f0f0';
+      tempContainer.style.padding = '10px';
+      tempContainer.style.display = 'flex';
+      tempContainer.style.alignItems = 'flex-start';
+      tempContainer.style.gap = '10px';
+      tempContainer.style.justifyContent = 'center';
+      
+      // 持ち駒エリアをコピー（後手を左側、先手を右側に配置）
+      const capturedPiecesLeft = boardLayoutElement.querySelector('.captured-pieces-left') as HTMLElement;
+      const capturedPiecesRight = boardLayoutElement.querySelector('.captured-pieces-right') as HTMLElement;
+      
+      // 後手の持ち駒を左側に追加
+      if (capturedPiecesLeft) {
+        const capturedClone = capturedPiecesLeft.cloneNode(true) as HTMLElement;
+        tempContainer.appendChild(capturedClone);
+      }
+      
+      // 盤面をコピー
+      const boardElement = boardLayoutElement.querySelector('.board') as HTMLElement;
+      if (boardElement) {
+        const boardClone = boardElement.cloneNode(true) as HTMLElement;
+        tempContainer.appendChild(boardClone);
+      }
+      
+      // 先手の持ち駒を右側に追加
+      if (capturedPiecesRight) {
+        const capturedClone = capturedPiecesRight.cloneNode(true) as HTMLElement;
+        tempContainer.appendChild(capturedClone);
+      }
+      
+      // 一時的にDOMに追加
+      document.body.appendChild(tempContainer);
+
+      // Canvas要素を作成
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        alert('Canvasの作成に失敗しました。');
+        document.body.removeChild(tempContainer);
+        return;
+      }
+
+      // レイアウト全体のサイズを取得
+      const rect = tempContainer.getBoundingClientRect();
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+
+      // 背景色を設定
+      ctx.fillStyle = '#f0f0f0';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // 盤面部分を描画
+      const boardRect = boardElement?.getBoundingClientRect();
+      if (boardRect) {
+        const boardX = boardRect.left - rect.left;
+        const boardY = boardRect.top - rect.top;
+        
+        // 盤面の背景
+        ctx.fillStyle = '#8B4513';
+        ctx.fillRect(boardX, boardY, boardRect.width, boardRect.height);
+        
+        // 盤面の枠線
+        ctx.strokeStyle = '#654321';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(boardX, boardY, boardRect.width, boardRect.height);
+
+        // マス目の線を描画
+        const cellWidth = boardRect.width / 9;
+        const cellHeight = boardRect.height / 9;
+
+        ctx.strokeStyle = '#654321';
+        ctx.lineWidth = 1;
+
+        // 縦線
+        for (let i = 1; i < 9; i++) {
+          ctx.beginPath();
+          ctx.moveTo(boardX + i * cellWidth, boardY);
+          ctx.lineTo(boardX + i * cellWidth, boardY + boardRect.height);
+          ctx.stroke();
+        }
+
+        // 横線
+        for (let i = 1; i < 9; i++) {
+          ctx.beginPath();
+          ctx.moveTo(boardX, boardY + i * cellHeight);
+          ctx.lineTo(boardX + boardRect.width, boardY + i * cellHeight);
+          ctx.stroke();
+        }
+
+        // 駒の文字を描画
+        ctx.fillStyle = '#000';
+        ctx.font = `${cellHeight * 0.6}px serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        // 各マスに駒を描画
+        const squares = boardElement?.querySelectorAll('.square');
+        squares?.forEach((square) => {
+          const pieceText = square.getAttribute('data-piece');
+          if (pieceText) {
+            const row = parseInt(square.getAttribute('data-row') || '0');
+            const col = parseInt(square.getAttribute('data-col') || '0');
+            
+            const x = boardX + col * cellWidth + cellWidth / 2;
+            const y = boardY + row * cellHeight + cellHeight / 2;
+            
+            ctx.fillText(pieceText, x, y);
+          }
+        });
+      }
+
+      // 持ち駒エリアを描画
+      const capturedPiecesElements = tempContainer.querySelectorAll('.captured-pieces-left, .captured-pieces-right');
+      capturedPiecesElements.forEach((capturedElement) => {
+        const capturedRect = capturedElement.getBoundingClientRect();
+        const capturedX = capturedRect.left - rect.left;
+        const capturedY = capturedRect.top - rect.top;
+        
+        // 持ち駒エリアの背景
+        ctx.fillStyle = '#f5f5f5';
+        ctx.fillRect(capturedX, capturedY, capturedRect.width, capturedRect.height);
+        
+        // 持ち駒エリアの枠線
+        ctx.strokeStyle = '#8B4513';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(capturedX, capturedY, capturedRect.width, capturedRect.height);
+
+        // 持ち駒の文字を描画
+        ctx.fillStyle = '#000';
+        ctx.font = '14px serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        const capturedPieces = capturedElement.querySelectorAll('.captured-piece');
+        capturedPieces.forEach((piece) => {
+          const pieceText = piece.textContent;
+          if (pieceText) {
+            const pieceRect = piece.getBoundingClientRect();
+            const pieceX = capturedX + pieceRect.left - capturedRect.left + pieceRect.width / 2;
+            const pieceY = capturedY + pieceRect.top - capturedRect.top + pieceRect.height / 2;
+            
+            ctx.fillText(pieceText, pieceX, pieceY);
+          }
+        });
+      });
+
+      // 一時的なコンテナを削除
+      document.body.removeChild(tempContainer);
+
+      // CanvasをBlobに変換してクリップボードにコピー
+      canvas.toBlob(async (blob: Blob | null) => {
+        if (blob) {
+          try {
+            const item = new ClipboardItem({ 'image/png': blob });
+            await navigator.clipboard.write([item]);
+            alert('将棋盤の画像（持ち駒含む）をクリップボードにコピーしました。');
+          } catch (error) {
+            console.error('クリップボードへのコピーに失敗:', error);
+            // DataURLとしてコピーを試行
+            const dataUrl = canvas.toDataURL('image/png');
+            await navigator.clipboard.writeText(dataUrl);
+            alert('将棋盤の画像（持ち駒含む）をDataURL形式でクリップボードにコピーしました。');
+          }
+        }
+      }, 'image/png');
+    } catch (error) {
+      console.error('フォールバック処理でエラー:', error);
+      alert('画像のコピーに失敗しました。');
+    }
   }, []);
 
   // スクロール制御の効果
@@ -1359,6 +1797,23 @@ export const ShogiBoard: React.FC = () => {
               <div className="move-log-scroll-status">
                 {isScrollLocked ? 'スクロール停止中' : 'スクロール可能'}
               </div>
+            </div>
+
+            {/* KIFファイルコピーボタンと画像コピーボタン */}
+            <div className="copy-controls">
+              <button 
+                onClick={handleCopyKif}
+                className="kif-copy-button"
+                disabled={moveHistory.length === 0}
+              >
+                KIFファイルをコピー
+              </button>
+              <button 
+                onClick={handleCopyBoardImage}
+                className="image-copy-button"
+              >
+                盤面画像をコピー
+              </button>
             </div>
           </div>
           

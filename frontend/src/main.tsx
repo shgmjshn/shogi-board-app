@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
 import './index.css'
+import html2canvas from 'html2canvas'
 
 // WebAssemblyモジュールの初期化
 const initWasm = async () => {
@@ -27,6 +28,10 @@ const initWasm = async () => {
 
     // グローバルにモジュールを設定（必要なら）
     (window as any).wasmModule = wasmModule;
+    
+    // html2canvasをグローバルに設定
+    (window as any).html2canvas = html2canvas;
+    
     console.log('WASMモジュールの初期化完了');
     return wasmModule;
   } catch (err) {

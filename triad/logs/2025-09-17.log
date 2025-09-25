@@ -1,0 +1,98 @@
+>>> Prompt: @https://system.81dojo.com/ja/kifus/11464116 このページの「クリップボードにKIF形式でコピー」機能の実装と同じ形で、今作っているアプリに「クリップボードにKIF形式でコピー」機能を実装したい
+
+コードは必ず```で囲んでください。例：
+```python
+# ここにコードを書く
+```
+>>> 実行時刻: Wed Sep 17 13:53:02 JST 2025
+>>> APIキー: AIzaSyD51I...
+>>> API呼び出し開始...
+>>> API呼び出し成功
+>>> コードブロック形式で応答を取得しました
+>>> Geminiの応答:
+The provided URL points to a Japanese shogi (chess) game record.  The "Copy to clipboard in KIF format" functionality likely involves generating a KIF (Kifu Interchange Format) string representation of the game and then using the browser's clipboard API to copy that string.
+
+Because I don't have access to the internal workings of that website, I cannot provide the exact code used there. However, I can give you example implementations in several languages to achieve the same result.  You'll need to adapt these examples to your specific application's data structures and how you represent the shogi game.
+
+**Assumptions:**
+
+* You have a data structure representing the shogi game moves (e.g., an array of move objects, each containing information about the piece moved, source square, and destination square).
+* You have a function to convert your internal game representation into a KIF string.  This is the most complex part, requiring knowledge of the KIF format specification.
+
+
+**Example Implementations:**
+
+**JavaScript (for web browsers):**
+
+```javascript
+function copyKifToClipboard(kifString) {
+  navigator.clipboard.writeText(kifString)
+    .then(() => {
+      console.log('KIF copied to clipboard');
+      // Optionally, provide user feedback (e.g., a message)
+    })
+    .catch(err => {
+      console.error('Failed to copy: ', err);
+      // Handle error (e.g., show an error message to the user)
+    });
+}
+
+// Example usage: Assuming 'gameData' is your game data and 'generateKifString' is a function you've written to create the KIF string.
+let kifString = generateKifString(gameData);
+copyKifToClipboard(kifString);
+
+// Example generateKifString function (Rudimentary - Requires significant expansion for complete KIF support):
+function generateKifString(gameData) {
+    let kif = "V2.2\n"; //KIF version
+    gameData.forEach(move => {
+        kif += `${move.sourceSquare}-${move.destinationSquare}\n`; // This is a VERY simplified example!
+    });
+    return kif;
+}
+```
+
+**Python (for a desktop application):**
+
+```python
+import pyperclip
+
+def copy_kif_to_clipboard(kif_string):
+    try:
+        pyperclip.copy(kif_string)
+        print("KIF copied to clipboard")
+    except pyperclip.PyperclipException as e:
+        print(f"Error copying to clipboard: {e}")
+
+# Example usage:  Assuming 'game_data' is your game data and 'generate_kif_string' is your KIF generation function.
+kif_string = generate_kif_string(game_data)
+copy_kif_to_clipboard(kif_string)
+
+# Placeholder for generate_kif_string function (needs implementation based on your game data structure and KIF spec)
+def generate_kif_string(game_data):
+  #  Implement your KIF generation logic here
+    return "V2.2\n(your KIF string here)" #Replace with actual KIF string generation
+```
+
+**Remember to install `pyperclip`:**  `pip install pyperclip`
+
+
+These are basic examples.  The core challenge is implementing the `generateKifString` or `generate_kif_string` function which correctly formats your game data into the KIF specification.  This will require a detailed understanding of the KIF format for Shogi. You'll likely find resources and libraries online to assist with this.  Search for "Shogi KIF parser" or "Shogi KIF generator" to find helpful tools or code examples.  This will likely involve parsing the game's move history correctly.
+
+---
+
+>>> Prompt: 今の返答を日本語訳して
+>>> 実行時刻: Wed Sep 17 13:54:03 JST 2025
+>>> APIキー: AIzaSyD51I...
+>>> API呼び出し開始...
+>>> エラーが発生しました
+>>> API応答:
+{
+  "error": {
+    "code": 503,
+    "message": "The model is overloaded. Please try again later.",
+    "status": "UNAVAILABLE"
+  }
+}
+
+---
+

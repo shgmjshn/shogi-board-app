@@ -450,6 +450,60 @@
   background-color: #DEB887;
 }
 
+/* コピーコントロールのスタイル */
+.copy-controls {
+  margin-top: 10px;
+  text-align: center;
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
 
+.kif-copy-button {
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: bold;
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
 
- 
+.kif-copy-button:hover:not(:disabled) {
+  background-color: #45a049;
+  transform: translateY(-1px);
+}
+
+.kif-copy-button:disabled {
+  background-color: #cccccc;
+  color: #666666;
+  cursor: not-allowed;
+}
+
+.kif-copy-button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.image-copy-button {
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: bold;
+  background-color: #2196F3;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.image-copy-button:hover {
+  background-color: #1976D2;
+  transform: translateY(-1px);
+}
+
+.image-copy-button:active {
+  transform: translateY(0);
+}
