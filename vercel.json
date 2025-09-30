@@ -1,8 +1,7 @@
 {
-  "rootDirectory": "frontend",
-  "buildCommand": "npm run build",
-  "outputDirectory": "dist",
-  "installCommand": "npm install",
+  "buildCommand": "npm run build:frontend",
+  "outputDirectory": "frontend/dist",
+  "installCommand": "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && . $HOME/.cargo/env && cd shogi-core && wasm-pack build --release && cd .. && npm install",
   "functions": {
     "**/*.ts": {
       "runtime": "nodejs18.x"
@@ -13,4 +12,4 @@
       "NODE_ENV": "production"
     }
   }
-} 
+}
