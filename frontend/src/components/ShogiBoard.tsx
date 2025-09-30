@@ -797,8 +797,13 @@ export const ShogiBoard: React.FC = () => {
     newBoard.reset_to_initial_position();
     setIsBoardFlipped(false);
     setBoard(newBoard);
+    setMoveHistory([]); // 棋譜履歴をリセット
+    setCurrentMoveIndex(-1); // 現在の指し手インデックスをリセット
     // 平手初期状態に戻す際に駒の状態をリセット
     setPieceStates({});
+    
+    // 指し手ログの表示を強制的に更新
+    console.log('平手初期状態にリセットしました');
   }, [board]);
 
   const handleResetToMatePosition = useCallback(() => {
@@ -835,6 +840,11 @@ export const ShogiBoard: React.FC = () => {
     setIsBoardFlipped(false);
     
     setBoard(newBoard);
+    setMoveHistory([]); // 棋譜履歴をリセット
+    setCurrentMoveIndex(-1); // 現在の指し手インデックスをリセット
+    
+    // 指し手ログの表示を強制的に更新
+    console.log('詰み局面にリセットしました');
   }, [board]);
 
   const handleChangeTurn = useCallback(() => {
@@ -972,13 +982,18 @@ export const ShogiBoard: React.FC = () => {
       newBoard.add_captured_piece(draggedPlayer, pieceToAdd);
     }
     
+    // 持ち駒からのドロップであれば、持ち駒を1枚消費
+    if (!dragStartPosition) {
+      newBoard.use_captured_piece(draggedPlayer, draggedPiece);
+    }
+    
     // 新しい駒を配置
     newBoard.set_piece_by_coords(row, col, draggedPiece, draggedPlayer);
     setBoard(newBoard);
     setDraggedPiece(null);
     setDraggedPlayer(null);
     setDragStartPosition(null);
-  }, [board, isEditMode, draggedPiece, draggedPlayer]);
+  }, [board, isEditMode, draggedPiece, draggedPlayer, dragStartPosition]);
 
   const handleSquareDragOver = useCallback((event: React.DragEvent) => {
     if (isEditMode) {
@@ -1241,11 +1256,15 @@ export const ShogiBoard: React.FC = () => {
     newBoard.reset_to_initial_position();
     setBoard(newBoard);
     setCurrentMoveIndex(-1);
+    setMoveHistory([]); // 棋譜履歴をリセット
     setSelectedPosition(null);
     setValidMoves([]);
     setSelectedCapturedPiece(null);
     setSelectedCapturedPiecePlayer(null);
     setIsDroppingMode(false);
+    
+    // 指し手ログの表示を強制的に更新
+    console.log('指し手ログをリセットしました');
   }, [board]);
 
   // スクロール制御を切り替える関数
@@ -1349,19 +1368,12 @@ export const ShogiBoard: React.FC = () => {
       
       // 棋譜表記を生成
       let moveNotation = '';
-      if (move.fromRow !== undefined && move.fromCol !== undefined) {
-        // 通常の移動
-        moveNotation = convertToKifNotation(
-          move.toRow || 0, 
-          move.toCol || 0, 
-          move.fromRow, 
-          move.fromCol,
-          move.piece, // 記録された駒の種類を使用
-          move.isPromoted || false, // 記録された成り情報を使用
-          false,
-          index
-        );
-      } else {
+      const isDropMove = (
+        (move.fromRow === -1 && move.fromCol === -1) ||
+        (move.fromRow === undefined || move.fromCol === undefined)
+      );
+
+      if (isDropMove) {
         // 持ち駒ドロップ
         moveNotation = convertToKifNotation(
           move.toRow || 0,
@@ -1371,6 +1383,18 @@ export const ShogiBoard: React.FC = () => {
           move.piece,
           false,
           true, // isDrop = true
+          index
+        );
+      } else {
+        // 通常の移動
+        moveNotation = convertToKifNotation(
+          move.toRow || 0, 
+          move.toCol || 0, 
+          move.fromRow!, 
+          move.fromCol!,
+          move.piece, // 記録された駒の種類を使用
+          move.isPromoted || false, // 記録された成り情報を使用
+          false,
           index
         );
       }
