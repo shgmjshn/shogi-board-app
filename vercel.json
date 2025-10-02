@@ -1,7 +1,7 @@
 {
-  "buildCommand": "cd frontend && npm run build",
-  "outputDirectory": "frontend/dist",
-  "installCommand": "export HOME=/root CARGO_HOME=/root/.cargo RUSTUP_HOME=/root/.rustup; curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y; . /root/.cargo/env; cd shogi-core && npx --yes wasm-pack build --release && cd ..; npm install",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "installCommand": "export HOME=/root CARGO_HOME=/root/.cargo RUSTUP_HOME=/root/.rustup; curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y; . /root/.cargo/env; (cd ../shogi-core && npx --yes wasm-pack build --release); npm install",
   "functions": {
     "**/*.ts": {
       "runtime": "nodejs18.x"
