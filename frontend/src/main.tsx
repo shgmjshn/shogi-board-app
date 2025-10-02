@@ -3,31 +3,28 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import './index.css'
 import html2canvas from 'html2canvas'
+import initCore, * as ShogiCore from 'shogi-core'
 
 // WebAssemblyモジュールの初期化
 const initWasm = async () => {
   try {
     console.log('WASMモジュールの初期化開始');
     
-    // WebAssemblyモジュールを動的インポート（型を明示して default を呼び出せるようにする）
-    const wasmModule: typeof import('shogi-core') = await import('shogi-core');
-    console.log('WASMモジュール読み込み完了:', wasmModule);
-
-    // WASMモジュールの初期化を待機
-    await wasmModule.default();
+    // WASMモジュールの初期化を待機（静的インポートの default 初期化関数を呼ぶ）
+    await initCore();
     console.log('WASMモジュール初期化完了');
 
     // Boardクラスなどが正しくimportできているか確認
-    if (!wasmModule.Board || typeof wasmModule.Board !== 'function') {
+    if (!ShogiCore.Board || typeof ShogiCore.Board !== 'function') {
       throw new Error('Boardクラスが見つかりません');
     }
 
     // テスト用のインスタンス作成
-    const testBoard = new wasmModule.Board();
+    const testBoard = new ShogiCore.Board();
     console.log('Boardインスタンス作成成功:', testBoard);
 
     // グローバルにモジュールを設定（必要なら）
-    (window as any).wasmModule = wasmModule;
+    (window as any).wasmModule = ShogiCore;
     
     // html2canvasをグローバルに設定
     (window as any).html2canvas = html2canvas;
