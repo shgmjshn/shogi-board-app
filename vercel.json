@@ -1,15 +1,11 @@
 {
-  "buildCommand": "npm run build",
-  "outputDirectory": "dist",
-  "installCommand": "export HOME=/root CARGO_HOME=/root/.cargo RUSTUP_HOME=/root/.rustup; curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y; . /root/.cargo/env; (cd ../shogi-core && npx --yes wasm-pack build --release); npm install",
+  "buildCommand": "if [ -f frontend/package.json ]; then npm --prefix frontend run build; else npm run build; fi",
+  "outputDirectory": "frontend/dist",
+  "installCommand": "export HOME=/root CARGO_HOME=/root/.cargo RUSTUP_HOME=/root/.rustup NPM_CONFIG_PRODUCTION=false; curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y; . /root/.cargo/env; CORE_DIR=; if [ -d shogi-core ]; then CORE_DIR=shogi-core; elif [ -d ../shogi-core ]; then CORE_DIR=../shogi-core; fi; (cd $CORE_DIR && npx --yes wasm-pack build --release); if [ -f frontend/package.json ]; then npm --prefix frontend ci --include=dev || npm --prefix frontend install --include=dev; else npm ci --include=dev || npm install --include=dev; fi",
   "functions": {
     "**/*.ts": {
       "runtime": "nodejs18.x"
     }
   },
-  "build": {
-    "env": {
-      "NODE_ENV": "production"
-    }
-  }
+  "build": {}
 }
