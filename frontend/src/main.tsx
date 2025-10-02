@@ -9,8 +9,8 @@ const initWasm = async () => {
   try {
     console.log('WASMモジュールの初期化開始');
     
-    // WebAssemblyモジュールを動的インポート
-    const wasmModule = await import('shogi-core');
+    // WebAssemblyモジュールを動的インポート（型を明示して default を呼び出せるようにする）
+    const wasmModule: typeof import('shogi-core') = await import('shogi-core');
     console.log('WASMモジュール読み込み完了:', wasmModule);
 
     // WASMモジュールの初期化を待機
