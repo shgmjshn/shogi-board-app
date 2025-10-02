@@ -1,14 +1,6 @@
 {
   "installCommand": "npm run vercel:install",
   "buildCommand": "npm run build",
-  "outputDirectory": "dist",
-  "build": {
-    "env": {
-      "HOME": "/root",
-      "CARGO_HOME": "/root/.cargo",
-      "RUSTUP_HOME": "/root/.rustup",
-      "NPM_CONFIG_PRODUCTION": "false"
-    }
-  }
+  "outputDirectory": "dist"
 }
 

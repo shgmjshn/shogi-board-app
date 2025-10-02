@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-export HOME=/root
-export CARGO_HOME=/root/.cargo
-export RUSTUP_HOME=/root/.rustup
+export CARGO_HOME=${CARGO_HOME:-/root/.cargo}
+export RUSTUP_HOME=${RUSTUP_HOME:-/root/.rustup}
 export NPM_CONFIG_PRODUCTION=false
 
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
