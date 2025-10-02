@@ -1,6 +1,14 @@
 {
-  "installCommand": "export HOME=/root CARGO_HOME=/root/.cargo RUSTUP_HOME=/root/.rustup NPM_CONFIG_PRODUCTION=false; curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y; . /root/.cargo/env; (cd ../shogi-core && npx --yes wasm-pack build --release); npm ci --include=dev || npm install --include=dev",
+  "installCommand": "npm run vercel:install",
   "buildCommand": "npm run build",
-  "outputDirectory": "dist"
+  "outputDirectory": "dist",
+  "build": {
+    "env": {
+      "HOME": "/root",
+      "CARGO_HOME": "/root/.cargo",
+      "RUSTUP_HOME": "/root/.rustup",
+      "NPM_CONFIG_PRODUCTION": "false"
+    }
+  }
 }
 
