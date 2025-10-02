@@ -36,5 +36,8 @@
     "vite-plugin-wasm": "^3.4.1",
     "vitest": "^1.2.2",
     "wasm-pack": "^0.13.1"
+  },
+  "engines": {
+    "node": ">=22 <23"
   }
 }
