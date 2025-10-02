@@ -30,7 +30,7 @@ const initWasm = async () => {
     (window as any).html2canvas = html2canvas;
     
     console.log('WASMモジュールの初期化完了');
-    return wasmModule;
+    return ShogiCore;
   } catch (err) {
     console.error('WASMモジュールの初期化に失敗しました:', err);
     throw err;
