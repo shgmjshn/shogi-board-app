@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import './index.css'
 import html2canvas from 'html2canvas'
-import initCore, * as ShogiCore from 'shogi-core'
+import * as ShogiCore from 'shogi-core'
 
 // WebAssemblyモジュールの初期化
 const initWasm = async () => {
@@ -11,7 +11,7 @@ const initWasm = async () => {
     console.log('WASMモジュールの初期化開始');
     
     // WASMモジュールの初期化を待機（default 初期化関数を安全に呼ぶ）
-    const maybeInit = (ShogiCore as any)?.default ?? initCore;
+    const maybeInit = (ShogiCore as any)?.default;
     if (typeof maybeInit === 'function') {
       await maybeInit();
     } else {
