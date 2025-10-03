@@ -10,8 +10,13 @@ const initWasm = async () => {
   try {
     console.log('WASMモジュールの初期化開始');
     
-    // WASMモジュールの初期化を待機（default 初期化関数を呼ぶ）
-    await initCore();
+    // WASMモジュールの初期化を待機（default 初期化関数を安全に呼ぶ）
+    const maybeInit = (ShogiCore as any)?.default ?? initCore;
+    if (typeof maybeInit === 'function') {
+      await maybeInit();
+    } else {
+      console.warn('shogi-core default initializer not found; skipping init');
+    }
     console.log('WASMモジュール初期化完了');
 
     // Boardクラスなどが正しくimportできているか確認
