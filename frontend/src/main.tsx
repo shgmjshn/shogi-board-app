@@ -3,15 +3,15 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import './index.css'
 import html2canvas from 'html2canvas'
-import * as ShogiCore from 'shogi-core'
+import initCore, * as ShogiCore from 'shogi-core'
 
 // WebAssemblyモジュールの初期化
 const initWasm = async () => {
   try {
     console.log('WASMモジュールの初期化開始');
     
-    // WASMモジュールの初期化を待機（default 初期化関数を明示的に呼ぶ）
-    await (ShogiCore as any).default();
+    // WASMモジュールの初期化を待機（default 初期化関数を呼ぶ）
+    await initCore();
     console.log('WASMモジュール初期化完了');
 
     // Boardクラスなどが正しくimportできているか確認
