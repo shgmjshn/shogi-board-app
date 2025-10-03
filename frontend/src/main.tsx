@@ -10,8 +10,8 @@ const initWasm = async () => {
   try {
     console.log('WASMモジュールの初期化開始');
     
-    // WASMモジュールの初期化を待機（名前空間の default 初期化関数を呼ぶ）
-    await ShogiCore.default();
+    // WASMモジュールの初期化を待機（default 初期化関数を明示的に呼ぶ）
+    await (ShogiCore as any).default();
     console.log('WASMモジュール初期化完了');
 
     // Boardクラスなどが正しくimportできているか確認
