@@ -30,9 +30,12 @@ interface SquareProps {
   onDragStart?: (piece: any, player: any, event: React.DragEvent) => void;
   onDragEnd?: (event: React.DragEvent) => void;
   onDragLeave?: (event: React.DragEvent) => void;
+  onTouchStart?: (row: number, col: number, piece: any, player: any, event: React.TouchEvent) => void;
+  onTouchMove?: (event: React.TouchEvent) => void;
+  onTouchEnd?: (event: React.TouchEvent) => void;
 }
 
-const Square: React.FC<SquareProps> = ({ row, col, piece, player, isSelected, isValidMove, onClick, isDroppingMode, isEditMode, pieceState = 0, isBoardFlipped = false, isMoving, onDrop, onDragOver, onDragStart, onDragEnd, onDragLeave }) => {
+const Square: React.FC<SquareProps> = ({ row, col, piece, player, isSelected, isValidMove, onClick, isDroppingMode, isEditMode, pieceState = 0, isBoardFlipped = false, isMoving, onDrop, onDragOver, onDragStart, onDragEnd, onDragLeave, onTouchStart, onTouchMove, onTouchEnd }) => {
   const wasm = (window as any).wasmModule;
   
   // 駒の状態に応じて表示を変更
@@ -135,6 +138,24 @@ const Square: React.FC<SquareProps> = ({ row, col, piece, player, isSelected, is
     }
   }, [onDragLeave]);
 
+  const handleTouchStartInternal = useCallback((event: React.TouchEvent) => {
+    if (onTouchStart && isEditMode && piece !== (window as any).wasmModule?.Piece?.Empty) {
+      onTouchStart(row, col, piece, player, event);
+    }
+  }, [onTouchStart, isEditMode, piece, player, row, col]);
+
+  const handleTouchMoveInternal = useCallback((event: React.TouchEvent) => {
+    if (onTouchMove) {
+      onTouchMove(event);
+    }
+  }, [onTouchMove]);
+
+  const handleTouchEndInternal = useCallback((event: React.TouchEvent) => {
+    if (onTouchEnd) {
+      onTouchEnd(event);
+    }
+  }, [onTouchEnd]);
+
   const pieceText = getPieceText();
 
   return (
@@ -150,6 +171,9 @@ const Square: React.FC<SquareProps> = ({ row, col, piece, player, isSelected, is
       data-piece={pieceText}
       data-row={row}
       data-col={col}
+      onTouchStart={handleTouchStartInternal}
+      onTouchMove={handleTouchMoveInternal}
+      onTouchEnd={handleTouchEndInternal}
     >
       {pieceText}
     </div>
@@ -169,7 +193,10 @@ const renderBoard = (
   onDragOver?: (event: React.DragEvent) => void,
   onDragStart?: (piece: any, player: any, event: React.DragEvent) => void,
   onDragEnd?: (event: React.DragEvent) => void,
-  onDragLeave?: (event: React.DragEvent) => void
+  onDragLeave?: (event: React.DragEvent) => void,
+  onTouchStart?: (row: number, col: number, piece: any, player: any, event: React.TouchEvent) => void,
+  onTouchMove?: (event: React.TouchEvent) => void,
+  onTouchEnd?: (event: React.TouchEvent) => void
 ) => {
   const squares = [];
   
@@ -258,6 +285,9 @@ const renderBoard = (
             onDragStart={onDragStart}
             onDragEnd={onDragEnd}
             onDragLeave={onDragLeave}
+            onTouchStart={onTouchStart}
+            onTouchMove={onTouchMove}
+            onTouchEnd={onTouchEnd}
           />
         );
       } catch (err) {
@@ -281,6 +311,9 @@ const renderBoard = (
             onDragStart={onDragStart}
             onDragEnd={onDragEnd}
             onDragLeave={onDragLeave}
+            onTouchStart={onTouchStart}
+            onTouchMove={onTouchMove}
+            onTouchEnd={onTouchEnd}
           />
         );
       }
@@ -368,6 +401,7 @@ export const ShogiBoard: React.FC = () => {
   const [currentMoveIndex, setCurrentMoveIndex] = useState(-1);
   const [isScrollLocked, setIsScrollLocked] = useState(false);
   const [uiVersion, setUiVersion] = useState(0);
+  const touchDragRef = React.useRef<{ active: boolean } | null>(null);
 
 
 
@@ -1076,6 +1110,146 @@ export const ShogiBoard: React.FC = () => {
       }
     }
   }, [isEditMode]);
+
+  // タッチ操作（スマホ）用ユーティリティ
+  const demoteIfPromoted = useCallback((piece: any) => {
+    const wasm = (window as any).wasmModule;
+    if (!wasm) return piece;
+    if (piece === wasm.Piece.PromotedPawn) return wasm.Piece.Pawn;
+    if (piece === wasm.Piece.PromotedLance) return wasm.Piece.Lance;
+    if (piece === wasm.Piece.PromotedKnight) return wasm.Piece.Knight;
+    if (piece === wasm.Piece.PromotedSilver) return wasm.Piece.Silver;
+    if (piece === wasm.Piece.PromotedBishop) return wasm.Piece.Bishop;
+    if (piece === wasm.Piece.PromotedRook) return wasm.Piece.Rook;
+    return piece;
+  }, []);
+
+  const getDropTargetFromPoint = useCallback((clientX: number, clientY: number): { type: 'board'; row: number; col: number } | { type: 'captured'; player: any } | null => {
+    const elements = (document as any).elementsFromPoint ? (document as any).elementsFromPoint(clientX, clientY) : [document.elementFromPoint(clientX, clientY)];
+    for (const el of elements) {
+      if (!el) continue;
+      // マス上
+      const square = (el as HTMLElement).closest?.('.square') as HTMLElement | null;
+      if (square && square.hasAttribute('data-row') && square.hasAttribute('data-col')) {
+        const row = parseInt(square.getAttribute('data-row') || '0');
+        const col = parseInt(square.getAttribute('data-col') || '0');
+        return { type: 'board', row, col };
+      }
+      // 持ち駒リスト上
+      const capturedList = (el as HTMLElement).closest?.('.captured-pieces-list') as HTMLElement | null;
+      if (capturedList && capturedList.hasAttribute('data-player')) {
+        const playerStr = capturedList.getAttribute('data-player');
+        let playerVal: any = null;
+        try {
+          // data-player は enum 値（0/1）が入る想定
+          playerVal = playerStr !== null ? parseInt(playerStr) : null;
+        } catch (e) {}
+        return { type: 'captured', player: playerVal } as any;
+      }
+    }
+    return null;
+  }, []);
+
+  // タッチ: 盤面の駒から開始
+  const handleSquareTouchStart = useCallback((row: number, col: number, piece: any, player: any, event: React.TouchEvent) => {
+    if (!isEditMode) return;
+    event.preventDefault();
+    touchDragRef.current = { active: true };
+    setDraggedPiece(piece);
+    setDraggedPlayer(player);
+    setDragStartPosition({ row, col });
+    // 元の位置の駒を削除
+    const newBoard = board.clone();
+    newBoard.clear_square_by_coords(row, col);
+    setBoard(newBoard);
+  }, [isEditMode, board]);
+
+  // タッチ: 持ち駒から開始
+  const handleCapturedPieceTouchStart = useCallback((piece: any, player: any, event: React.TouchEvent) => {
+    if (!isEditMode) return;
+    event.preventDefault();
+    touchDragRef.current = { active: true };
+    // piece は { pieceType, count, name }
+    const types = [
+      (window as any).wasmModule?.Piece?.Pawn,
+      (window as any).wasmModule?.Piece?.Lance,
+      (window as any).wasmModule?.Piece?.Knight,
+      (window as any).wasmModule?.Piece?.Silver,
+      (window as any).wasmModule?.Piece?.Gold,
+      (window as any).wasmModule?.Piece?.Bishop,
+      (window as any).wasmModule?.Piece?.Rook,
+      (window as any).wasmModule?.Piece?.King,
+    ];
+    const wasmPiece = types[piece.pieceType];
+    setDraggedPiece(wasmPiece);
+    setDraggedPlayer(player);
+    setDragStartPosition(null); // 持ち駒から
+  }, [isEditMode]);
+
+  // タッチ移動: 今回は視覚的ゴーストは作らず、指を追従するのみ
+  const handleTouchMoveGlobal = useCallback((event: React.TouchEvent) => {
+    if (!isEditMode || !touchDragRef.current?.active) return;
+    event.preventDefault();
+  }, [isEditMode]);
+
+  // タッチ終了: ドロップ処理を行う
+  const handleTouchEndGlobal = useCallback((event: React.TouchEvent) => {
+    if (!isEditMode || !draggedPiece || !touchDragRef.current?.active) return;
+    event.preventDefault();
+    const touch = event.changedTouches[0];
+    const target = getDropTargetFromPoint(touch.clientX, touch.clientY);
+    const newBoard = board.clone();
+
+    if (target && target.type === 'board') {
+      const { row, col } = target;
+      // 既存駒の取り扱い
+      const existingPieceInfo = newBoard.get_piece_by_coords(row, col);
+      const existingPiece = existingPieceInfo.piece;
+      if (existingPiece !== (window as any).wasmModule?.Piece?.Empty) {
+        let pieceToAdd = demoteIfPromoted(existingPiece);
+        newBoard.add_captured_piece(draggedPlayer, pieceToAdd);
+      }
+      // 持ち駒からのドロップなら消費
+      if (!dragStartPosition) {
+        newBoard.use_captured_piece(draggedPlayer, draggedPiece);
+      }
+      newBoard.set_piece_by_coords(row, col, draggedPiece, draggedPlayer);
+      setBoard(newBoard);
+      setDraggedPiece(null);
+      setDraggedPlayer(null);
+      setDragStartPosition(null);
+      touchDragRef.current = null;
+      return;
+    }
+
+    if (target && target.type === 'captured') {
+      const targetPlayer = target.player;
+      // 盤→駒台: 成りは元に戻す
+      const pieceToAdd = demoteIfPromoted(draggedPiece);
+      // 駒台→駒台なら元の持ち駒を消費
+      if (!dragStartPosition && draggedPlayer !== undefined && draggedPlayer !== null) {
+        newBoard.use_captured_piece(draggedPlayer, draggedPiece);
+      }
+      newBoard.add_captured_piece(targetPlayer, pieceToAdd);
+      setBoard(newBoard);
+      setDraggedPiece(null);
+      setDraggedPlayer(null);
+      setDragStartPosition(null);
+      touchDragRef.current = null;
+      return;
+    }
+
+    // どこにもドロップされなかった: 元に戻す（盤から開始した場合のみ）
+    if (dragStartPosition) {
+      const { row, col } = dragStartPosition;
+      newBoard.set_piece_by_coords(row, col, draggedPiece, draggedPlayer);
+      setBoard(newBoard);
+    }
+    setDraggedPiece(null);
+    setDraggedPlayer(null);
+    setDragStartPosition(null);
+    touchDragRef.current = null;
+  }, [isEditMode, draggedPiece, draggedPlayer, dragStartPosition, board, getDropTargetFromPoint, demoteIfPromoted]);
 
   // 同じ駒が複数ある場合の区別表記を生成する関数
   const generateDisambiguation = useCallback((fromRow: number, fromCol: number, toRow: number, toCol: number, piece: any, player: any) => {
@@ -1789,7 +1963,7 @@ export const ShogiBoard: React.FC = () => {
           </div>
         )}
 
-        <div className="board-layout">
+        <div className="board-layout" onTouchMove={handleTouchMoveGlobal} onTouchEnd={handleTouchEndGlobal}>
           {/* 後手の持ち駒（左側） */}
           {board && (
             <div key={`captured-left-${uiVersion}`} className={`captured-pieces-${isBoardFlipped ? 'right' : 'left'}`}>
@@ -1803,6 +1977,7 @@ export const ShogiBoard: React.FC = () => {
                 onDragStart={handlePieceDragStart}
                 onDrop={handleCapturedPieceDrop}
                 onDragOver={handleSquareDragOver}
+                onTouchStartCaptured={handleCapturedPieceTouchStart}
               />
             </div>
           )}
@@ -1810,8 +1985,15 @@ export const ShogiBoard: React.FC = () => {
           {/* 盤面と現在の手番 */}
           <div className="board-center">
             {board && (
-              <div key={`board-${uiVersion}`} className="board">
-                {renderBoard(board, selectedPosition, validMoves, handleSquareClick, isDroppingMode, isEditMode, getPieceState, isBoardFlipped, handleSquareDrop, handleSquareDragOver, handlePieceDragStart, handleDragEnd, handleDragLeave)}
+              <div key={`board-${uiVersion}`} className="board"
+                   onTouchMove={handleTouchMoveGlobal}
+                   onTouchEnd={handleTouchEndGlobal}
+              >
+                {renderBoard(
+                  board, selectedPosition, validMoves, handleSquareClick, isDroppingMode, isEditMode, getPieceState, isBoardFlipped,
+                  handleSquareDrop, handleSquareDragOver, handlePieceDragStart, handleDragEnd, handleDragLeave,
+                  handleSquareTouchStart, handleTouchMoveGlobal, handleTouchEndGlobal
+                )}
               </div>
             )}
             
@@ -1888,6 +2070,7 @@ export const ShogiBoard: React.FC = () => {
                 onDragStart={handlePieceDragStart}
                 onDrop={handleCapturedPieceDrop}
                 onDragOver={handleSquareDragOver}
+                onTouchStartCaptured={handleCapturedPieceTouchStart}
               />
             </div>
           )}

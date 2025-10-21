@@ -11,6 +11,7 @@ interface CapturedPiecesProps {
   onDragStart?: (piece: any, player: any, event: React.DragEvent) => void;
   onDrop?: (player: any, piece: any, event: React.DragEvent) => void;
   onDragOver?: (event: React.DragEvent) => void;
+  onTouchStartCaptured?: (piece: any, player: any, event: React.TouchEvent) => void;
 }
 
 export const CapturedPieces: React.FC<CapturedPiecesProps> = ({ 
@@ -22,7 +23,8 @@ export const CapturedPieces: React.FC<CapturedPiecesProps> = ({
   isEditMode = false,
   onDragStart,
   onDrop,
-  onDragOver
+  onDragOver,
+  onTouchStartCaptured
 }) => {
   const wasm = (window as any).wasmModule;
   if (!wasm || !board) return null;
@@ -91,6 +93,7 @@ export const CapturedPieces: React.FC<CapturedPiecesProps> = ({
       <h3>{playerName}の持ち駒</h3>
       <div 
         className="captured-pieces-list"
+        data-player={player}
         onDrop={onDrop ? (e) => onDrop(player, null, e) : undefined}
         onDragOver={onDragOver}
       >
@@ -101,6 +104,7 @@ export const CapturedPieces: React.FC<CapturedPiecesProps> = ({
             onClick={() => onPieceClick(piece, player)}
             draggable={isEditMode}
             onDragStart={onDragStart ? (e) => onDragStart(piece, player, e) : undefined}
+            onTouchStart={onTouchStartCaptured ? (e) => onTouchStartCaptured(piece, player, e) : undefined}
           >
             <span className="piece-name">{piece.name}</span>
             <span className="piece-count">×{piece.count}</span>
