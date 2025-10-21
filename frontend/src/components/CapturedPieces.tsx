@@ -94,9 +94,9 @@ export const CapturedPieces: React.FC<CapturedPiecesProps> = ({
         onDrop={onDrop ? (e) => onDrop(player, null, e) : undefined}
         onDragOver={onDragOver}
       >
-        {capturedPieces.map((piece, index) => (
+        {capturedPieces.map((piece) => (
           <div
-            key={index}
+            key={piece.pieceType}
             className={`captured-piece ${selectedPiece?.pieceType === piece.pieceType ? 'selected' : ''}`}
             onClick={() => onPieceClick(piece, player)}
             draggable={isEditMode}

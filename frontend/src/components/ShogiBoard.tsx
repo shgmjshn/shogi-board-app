@@ -367,6 +367,7 @@ export const ShogiBoard: React.FC = () => {
   }>>([]);
   const [currentMoveIndex, setCurrentMoveIndex] = useState(-1);
   const [isScrollLocked, setIsScrollLocked] = useState(false);
+  const [uiVersion, setUiVersion] = useState(0);
 
 
 
@@ -801,6 +802,18 @@ export const ShogiBoard: React.FC = () => {
     setCurrentMoveIndex(-1); // 現在の指し手インデックスをリセット
     // 平手初期状態に戻す際に駒の状態をリセット
     setPieceStates({});
+    // 選択/編集/ドラッグ/ドロップ状態をクリア
+    setSelectedCapturedPiece(null);
+    setSelectedCapturedPiecePlayer(null);
+    setIsDroppingMode(false);
+    setSelectedEditPiece(null);
+    setSelectedEditPlayer(null);
+    setDraggedPiece(null);
+    setDraggedPlayer(null);
+    setDragStartPosition(null);
+    setSelectedPosition(null);
+    setValidMoves([]);
+    setUiVersion(v => v + 1);
     
     // 指し手ログの表示を強制的に更新
     console.log('平手初期状態にリセットしました');
@@ -812,6 +825,9 @@ export const ShogiBoard: React.FC = () => {
     
     // 盤面をクリア
     newBoard.clear_board();
+    // 持ち駒を両方クリア（編集後の残骸を除去）
+    newBoard.clear_captured_pieces(window.wasmModule.Player.Black);
+    newBoard.clear_captured_pieces(window.wasmModule.Player.White);
     
     // 後手玉を初期位置に配置
     newBoard.set_piece_by_coords(8, 4, window.wasmModule.Piece.King, window.wasmModule.Player.White);
@@ -842,6 +858,18 @@ export const ShogiBoard: React.FC = () => {
     setBoard(newBoard);
     setMoveHistory([]); // 棋譜履歴をリセット
     setCurrentMoveIndex(-1); // 現在の指し手インデックスをリセット
+    // 選択/編集/ドラッグ/ドロップ状態をクリア
+    setSelectedCapturedPiece(null);
+    setSelectedCapturedPiecePlayer(null);
+    setIsDroppingMode(false);
+    setSelectedEditPiece(null);
+    setSelectedEditPlayer(null);
+    setDraggedPiece(null);
+    setDraggedPlayer(null);
+    setDragStartPosition(null);
+    setSelectedPosition(null);
+    setValidMoves([]);
+    setUiVersion(v => v + 1);
     
     // 指し手ログの表示を強制的に更新
     console.log('詰み局面にリセットしました');
@@ -1008,6 +1036,12 @@ export const ShogiBoard: React.FC = () => {
     event.preventDefault();
     const newBoard = board.clone();
     
+    // 駒台→駒台 の場合は、元の持ち駒を1枚消費してから、
+    // ドロップ先プレイヤーの持ち駒に1枚追加する
+    if (!dragStartPosition && draggedPlayer !== undefined && draggedPlayer !== null) {
+      newBoard.use_captured_piece(draggedPlayer, draggedPiece);
+    }
+    
     // ドラッグされた駒を指定プレイヤーの持ち駒に追加
     newBoard.add_captured_piece(player, draggedPiece);
     
@@ -1015,7 +1049,7 @@ export const ShogiBoard: React.FC = () => {
     setDraggedPiece(null);
     setDraggedPlayer(null);
     setDragStartPosition(null);
-  }, [board, isEditMode, draggedPiece]);
+  }, [board, isEditMode, draggedPiece, draggedPlayer, dragStartPosition]);
 
   const handleDragEnd = useCallback((event: React.DragEvent) => {
     if (!isEditMode || !draggedPiece || !dragStartPosition) return;
@@ -1758,7 +1792,7 @@ export const ShogiBoard: React.FC = () => {
         <div className="board-layout">
           {/* 後手の持ち駒（左側） */}
           {board && (
-            <div className={`captured-pieces-${isBoardFlipped ? 'right' : 'left'}`}>
+            <div key={`captured-left-${uiVersion}`} className={`captured-pieces-${isBoardFlipped ? 'right' : 'left'}`}>
               <CapturedPieces
                 board={board}
                 onPieceClick={handleCapturedPieceClick}
@@ -1776,7 +1810,7 @@ export const ShogiBoard: React.FC = () => {
           {/* 盤面と現在の手番 */}
           <div className="board-center">
             {board && (
-              <div className="board">
+              <div key={`board-${uiVersion}`} className="board">
                 {renderBoard(board, selectedPosition, validMoves, handleSquareClick, isDroppingMode, isEditMode, getPieceState, isBoardFlipped, handleSquareDrop, handleSquareDragOver, handlePieceDragStart, handleDragEnd, handleDragLeave)}
               </div>
             )}
@@ -1843,7 +1877,7 @@ export const ShogiBoard: React.FC = () => {
           
           {/* 先手の持ち駒（右側） */}
           {board && (
-            <div className={`captured-pieces-${isBoardFlipped ? 'left' : 'right'}`}>
+            <div key={`captured-right-${uiVersion}`} className={`captured-pieces-${isBoardFlipped ? 'left' : 'right'}`}>
               <CapturedPieces
                 board={board}
                 onPieceClick={handleCapturedPieceClick}
