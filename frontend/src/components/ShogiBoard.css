@@ -144,7 +144,7 @@
   font-weight: bold;
   cursor: pointer;
   user-select: none;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
   position: relative;
   flex: 1;
   height: 100%;
