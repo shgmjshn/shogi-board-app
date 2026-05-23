@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { ErrorBoundary } from './ErrorBoundary';
 import { CapturedPieces } from './CapturedPieces';
+import { BoardOcrDialog } from './BoardOcrDialog';
+import { applyRecognizedPosition } from '../utils/applyRecognizedPosition';
+import { RecognizedPosition } from '../utils/boardOcrTypes';
 import './ShogiBoard.css';
 
 // WASMモジュールの型定義
@@ -401,6 +404,7 @@ export const ShogiBoard: React.FC = () => {
   const [currentMoveIndex, setCurrentMoveIndex] = useState(-1);
   const [isScrollLocked, setIsScrollLocked] = useState(false);
   const [uiVersion, setUiVersion] = useState(0);
+  const [showOcrDialog, setShowOcrDialog] = useState(false);
   const touchDragRef = React.useRef<{ active: boolean } | null>(null);
 
 
@@ -1918,6 +1922,34 @@ export const ShogiBoard: React.FC = () => {
     }
   }, []);
 
+  const handleApplyRecognizedPosition = useCallback((position: RecognizedPosition) => {
+    if (!board) return;
+
+    try {
+      const newBoard = applyRecognizedPosition(board, position);
+      setIsBoardFlipped(false);
+      setBoard(newBoard);
+      setMoveHistory([]);
+      setCurrentMoveIndex(-1);
+      setPieceStates({});
+      setSelectedCapturedPiece(null);
+      setSelectedCapturedPiecePlayer(null);
+      setIsDroppingMode(false);
+      setSelectedEditPiece(null);
+      setSelectedEditPlayer(null);
+      setDraggedPiece(null);
+      setDraggedPlayer(null);
+      setDragStartPosition(null);
+      setSelectedPosition(null);
+      setValidMoves([]);
+      setUiVersion((value) => value + 1);
+      alert('写真から読み取った局面を盤面に反映しました。必要に応じて局面編集モードで修正してください。');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '盤面への反映に失敗しました';
+      alert(message);
+    }
+  }, [board]);
+
   // スクロール制御の効果
   useEffect(() => {
     if (isScrollLocked) {
@@ -2041,6 +2073,12 @@ export const ShogiBoard: React.FC = () => {
 
             {/* KIFファイルコピーボタンと画像コピーボタン */}
             <div className="copy-controls">
+              <button
+                onClick={() => setShowOcrDialog(true)}
+                className="board-ocr-button"
+              >
+                写真から盤面読取
+              </button>
               <button 
                 onClick={handleCopyKif}
                 className="kif-copy-button"
@@ -2098,6 +2136,11 @@ export const ShogiBoard: React.FC = () => {
             </div>
           </div>
         )}
+        <BoardOcrDialog
+          isOpen={showOcrDialog}
+          onClose={() => setShowOcrDialog(false)}
+          onApply={handleApplyRecognizedPosition}
+        />
       </div>
     </ErrorBoundary>
   );
