@@ -126,7 +126,8 @@ export const BoardOcrDialog: React.FC<BoardOcrDialogProps> = ({
     return null;
   }
 
-  const hasServerOrClientKey =
+  const hideApiKeyInput =
+    import.meta.env.PROD ||
     Boolean(getConfiguredApiKey(apiKey)) ||
     Boolean(import.meta.env.VITE_GEMINI_API_KEY);
 
@@ -173,7 +174,7 @@ export const BoardOcrDialog: React.FC<BoardOcrDialogProps> = ({
           </button>
         </div>
 
-        {!hasServerOrClientKey && (
+        {!hideApiKeyInput && (
           <div className="board-ocr-api-key">
             <label htmlFor="board-ocr-api-key">Gemini APIキー（未設定時のみ必要）</label>
             <input

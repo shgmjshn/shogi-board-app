@@ -25,7 +25,7 @@ export async function recognizeBoardFromPhoto(
   mimeType: string,
   userApiKey?: string,
 ): Promise<RecognizedPosition> {
-  const directApiKey = getConfiguredApiKey(userApiKey);
+  const directApiKey = import.meta.env.PROD ? undefined : getConfiguredApiKey(userApiKey);
 
   if (!directApiKey) {
     try {
@@ -37,15 +37,18 @@ export async function recognizeBoardFromPhoto(
         body: JSON.stringify({ image: imageBase64, mimeType }),
       });
 
+      const responseBody = (await response.json().catch(() => ({}))) as
+        | RecognizedPosition
+        | { error?: string };
+
       if (response.ok) {
-        return (await response.json()) as RecognizedPosition;
+        return responseBody as RecognizedPosition;
       }
 
-      const errorBody = await response.json().catch(() => ({}));
       throw new Error(
-        typeof errorBody.error === 'string'
-          ? errorBody.error
-          : 'サーバーでの盤面認識に失敗しました',
+        typeof (responseBody as { error?: string }).error === 'string'
+          ? (responseBody as { error?: string }).error
+          : `サーバーでの盤面認識に失敗しました (${response.status})`,
       );
     } catch (error) {
       if (error instanceof Error) {

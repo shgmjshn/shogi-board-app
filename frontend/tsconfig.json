@@ -22,6 +22,6 @@
       "shogi-core/*": ["../shogi-core/pkg/*"]
     }
   },
-  "include": ["src", "../shogi-core/pkg/shogi_core.d.ts"],
+  "include": ["src", "lib", "../shogi-core/pkg/shogi_core.d.ts"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
